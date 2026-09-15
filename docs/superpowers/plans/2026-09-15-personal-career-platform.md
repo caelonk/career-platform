@@ -4,9 +4,9 @@
 
 **Goal:** Build a recruiter-friendly personal resume and case-study site with FastAPI, Jinja templates, a typed SQLAlchemy data layer, authenticated administration, and a database-independent public snapshot fallback.
 
-**Architecture:** The application is a server-rendered FastAPI service. Jinja templates render public and admin pages; application services enforce publication and visibility rules; SQLAlchemy 2.x repositories access SQLite locally/tests and PostgreSQL in production; Alembic owns schema migrations. Public pages use live database reads when available and fall back to versioned static HTML/JSON files when the database is unavailable.
+**Architecture:** The application is a server-rendered FastAPI service behind Nginx on an Azure Linux VM. Jinja templates render public and admin pages; application services enforce publication and visibility rules; SQLAlchemy 2.x repositories access SQLite locally/tests and Azure Database for PostgreSQL in production; Alembic owns schema migrations. systemd manages Uvicorn, while Nginx handles TLS, static assets, snapshot fallback, and reverse proxying. Public pages use live database reads when available and fall back to versioned static HTML/JSON files when the database is unavailable.
 
-**Tech Stack:** Python 3.12, FastAPI, Uvicorn, Jinja2, SQLAlchemy 2.x, Alembic, Pydantic v2, SQLite for local development/tests, PostgreSQL for production, pytest, httpx, Docker Compose, vanilla CSS, and server-side signed session cookies with password hashing.
+**Tech Stack:** Python 3.12, FastAPI, Uvicorn, Jinja2, SQLAlchemy 2.x, Alembic, Pydantic v2, SQLite for local development/tests, Azure Database for PostgreSQL, pytest, httpx, Nginx, systemd, Azure Linux VM, vanilla CSS, and server-side signed session cookies with password hashing.
 
 **Spec:** `docs/superpowers/specs/2026-09-15-personal-career-platform-design.md`
 
@@ -21,6 +21,7 @@
 - Snapshot generation must never replace a valid snapshot with a failed or partial generation.
 - The initial release uses validated external media URLs and serves the resume PDF as a static application asset; it does not implement uploads.
 - Production recovery targets are RPO 24 hours and RTO 4 hours.
+- Production runs on an Azure Linux VM with Nginx and systemd-managed Uvicorn; PostgreSQL runs on Azure Database for PostgreSQL.
 - Public queries include only published and visible records; private or draft records never enter public payloads.
 - Failed writes and database errors must return explicit failure responses, never success-shaped fallbacks.
 
@@ -32,7 +33,10 @@ Create the following focused boundaries:
 
 - `pyproject.toml`: runtime, development, and test dependencies plus command configuration.
 - `.env.example`: documented local and production configuration keys without secrets.
-- `Dockerfile`, `docker-compose.yml`: reproducible application and local SQLite/PostgreSQL development services.
+- `Dockerfile`, `docker-compose.yml`: optional reproducible local application and database development services.
+- `deploy/nginx/career-platform.conf`: Nginx TLS, static-file, snapshot-fallback, and reverse-proxy configuration.
+- `deploy/systemd/career-platform.service`: systemd service for Uvicorn on the Azure VM.
+- `deploy/azure/README.md`: Azure VM, managed PostgreSQL, firewall, DNS, TLS, deployment, and rollback runbook.
 - `app/main.py`: FastAPI application factory, middleware, router registration, and startup checks.
 - `app/config.py`: typed environment configuration.
 - `app/db/session.py`: SQLAlchemy engine/session construction and request-scoped session dependency.
@@ -49,6 +53,7 @@ Create the following focused boundaries:
 - `app/static/css/site.css`: accessible recruiter-focused visual system.
 - `app/static/resume/resume.pdf`: versioned resume asset location.
 - `tests/`: unit, integration, and end-to-end route tests.
+- `tests/operations/test_deployment_config.py`: static checks for Nginx and systemd deployment contracts.
 - `scripts/restore_verify.py`: isolated restore and recovery verification entry point.
 - `docs/operations/recovery.md`: backup, restore, RPO/RTO, and verification instructions.
 
@@ -66,6 +71,9 @@ Create the following focused boundaries:
 - Create: `app/static/css/site.css`
 - Create: `Dockerfile`
 - Create: `docker-compose.yml`
+- Create: `deploy/nginx/career-platform.conf`
+- Create: `deploy/systemd/career-platform.service`
+- Create: `deploy/azure/README.md`
 - Test: `tests/test_health.py`
 
 **Interfaces:**
@@ -93,7 +101,7 @@ Define environment-backed settings with a safe test default for SQLite, reject a
 
 - [ ] **Step 4: Add the development container files and base templates**
 
-Configure Docker Compose to run the FastAPI app with a mounted source tree and snapshot directory. Keep PostgreSQL available as an optional local service while the default test database remains SQLite.
+Configure Docker Compose for optional local development with a mounted source tree and snapshot directory. Keep PostgreSQL available as an optional local service while the default test database remains SQLite. The production process will not depend on Docker Compose.
 
 - [ ] **Step 5: Run the test and verify it passes**
 
@@ -501,7 +509,70 @@ git add scripts/restore_verify.py tests/operations docs/operations docker-compos
 git commit -m "feat: add database recovery verification"
 ```
 
-### Task 8: Completing end-to-end acceptance coverage and operational documentation
+### Task 8: Deploying behind Nginx on an Azure Linux VM
+
+**Files:**
+- Create: `deploy/nginx/career-platform.conf`
+- Create: `deploy/systemd/career-platform.service`
+- Create: `deploy/azure/README.md`
+- Modify: `.env.example`
+- Modify: `README.md`
+
+**Interfaces:**
+- Produces an Nginx virtual host that serves `/static/` and the active snapshot directory directly, proxies dynamic requests to `127.0.0.1:8000`, and forwards only required headers.
+- Produces a systemd unit that starts Uvicorn with `app.main:create_app --factory`, restarts on failure, loads an environment file, and runs as a non-root service user.
+- Produces an Azure deployment runbook covering VM hardening, managed PostgreSQL connectivity, DNS, TLS, health checks, migrations, deployment, rollback, and snapshot permissions.
+
+- [ ] **Step 1: Write deployment configuration checks**
+
+```python
+def test_nginx_config_serves_snapshot_and_proxies_dynamic_requests():
+    config = Path("deploy/nginx/career-platform.conf").read_text()
+    assert "proxy_pass http://127.0.0.1:8000" in config
+    assert "snapshot" in config
+    assert "try_files" in config
+
+def test_systemd_service_runs_uvicorn_without_root():
+    unit = Path("deploy/systemd/career-platform.service").read_text()
+    assert "User=career-platform" in unit
+    assert "app.main:create_app" in unit
+    assert "Restart=on-failure" in unit
+```
+
+- [ ] **Step 2: Run the checks and verify they fail**
+
+Run: `pytest tests/operations/test_deployment_config.py -q`
+Expected: FAIL because the Nginx and systemd files do not exist.
+
+- [ ] **Step 3: Implement Nginx routing and static fallback**
+
+Configure HTTPS termination, HTTP-to-HTTPS redirect, security headers, `/static/` and snapshot serving, dynamic proxying to Uvicorn, bounded request limits, and access/error logging. Ensure the profile snapshot remains reachable even when FastAPI cannot connect to PostgreSQL.
+
+- [ ] **Step 4: Implement the systemd service**
+
+Run Uvicorn on loopback only, load production secrets from a root-readable environment file, use a dedicated non-root user, set the working directory, restart on failure, and expose `/health` for local service checks.
+
+- [ ] **Step 5: Document Azure deployment and rollback**
+
+Document creation of an Azure Linux VM, NSG rules allowing only SSH from an operator range and HTTP/HTTPS publicly, managed PostgreSQL firewall/private connectivity, DNS, certificate issuance/renewal, least-privilege service accounts, snapshot-directory ownership, migration commands, health checks, and rollback to the previous application release and snapshot.
+
+- [ ] **Step 6: Run the checks and verify they pass**
+
+Run: `pytest tests/operations/test_deployment_config.py -q`
+Expected: PASS.
+
+**Done looks like:** The application can run as a non-root systemd service on an Azure Linux VM, Nginx serves static assets and the last-good snapshot independently, and dynamic requests reach FastAPI only through loopback.
+
+**How to check:** On a staging VM, run `sudo nginx -t`, `sudo systemctl enable --now career-platform`, `curl -f http://127.0.0.1:8000/health`, and request the public HTTPS URL with PostgreSQL connectivity temporarily blocked to confirm the profile snapshot remains visible.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add deploy .env.example README.md tests/operations/test_deployment_config.py
+git commit -m "ops: deploy FastAPI behind Nginx on Azure VM"
+```
+
+### Task 9: Completing end-to-end acceptance coverage and operational documentation
 
 **Files:**
 - Create: `tests/e2e/test_public_and_admin_flow.py`
@@ -541,7 +612,7 @@ Keep fixes within route wiring, fixture setup, error handling, and documentation
 
 - [ ] **Step 4: Add local setup and production configuration documentation**
 
-Document installation, SQLite test commands, Docker Compose startup, PostgreSQL environment variables, admin bootstrap, snapshot directory permissions, static resume placement, backup verification, and outage simulation.
+Document installation, SQLite test commands, Docker Compose startup, Azure VM/systemd deployment, Azure PostgreSQL environment variables, admin bootstrap, snapshot directory permissions, static resume placement, backup verification, and outage simulation.
 
 - [ ] **Step 5: Run the complete available test suite**
 
@@ -561,7 +632,7 @@ git commit -m "test: document and verify complete career platform flow"
 
 ## Plan self-review
 
-- **Spec coverage:** Visitor experience is covered by Tasks 3–4; placeholders by Task 4; relational data and project content by Task 2; server-only access by Tasks 2–5; outage profile fallback by Task 6; recovery checks and RPO/RTO by Task 7; security/error behavior by Task 5 and Task 6; acceptance testing by Task 8.
+- **Spec coverage:** Visitor experience is covered by Tasks 3–4; placeholders by Task 4; relational data and project content by Task 2; server-only access by Tasks 2–5; outage profile fallback by Task 6; recovery checks and RPO/RTO by Task 7; security/error behavior by Task 5 and Task 6; Azure/Nginx/systemd deployment by Task 8; acceptance testing by Task 9.
 - **Scope check:** Opportunity tracking, networking, tasks, uploads, and multi-user social features remain deferred as required by the spec.
 - **Placeholder scan:** No implementation step is left as TBD, TODO, or “implement later”; each task identifies files, interfaces, test commands, expected results, and completion checks.
 - **Type consistency:** Repository/service names and snapshot/authentication interfaces are defined before they are consumed by later tasks.
