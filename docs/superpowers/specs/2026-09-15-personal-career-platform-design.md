@@ -143,9 +143,9 @@ Project content should support structured fields for recruiter scanning while al
 
 ### Database outage behavior
 
-The public site must serve the last successfully generated public snapshot when live database reads are unavailable. The snapshot should cover the full public experience: home page, published resume sections, published project pages, and public navigation metadata.
+The public site must serve the last successfully generated public snapshot when live database reads are unavailable. The snapshot must include the profile identity, headline, value proposition, contact or resume CTA, and core resume content so the profile remains visible and useful during an outage. It should also cover published project pages and public navigation metadata.
 
-Snapshot generation must be tied to a known-good publication state. A failed or incomplete generation must not replace the currently served snapshot. The system should expose an operational status signal for administrators without displaying internal failure details to visitors.
+Snapshot generation must be tied to a known-good publication state. A failed or incomplete generation must not replace the currently served snapshot. The profile portion of the snapshot must be independently addressable or otherwise guaranteed to render even if a project or secondary public section cannot be generated. The system should expose an operational status signal for administrators without displaying internal failure details to visitors.
 
 Admin editing and publishing require live database access. If the database is unavailable, the admin experience should fail explicitly with a useful retry message rather than reporting a false save.
 
@@ -185,7 +185,8 @@ The implementation is acceptable when:
 - Major planned modules can display labeled placeholders without exposing unfinished resume content.
 - An administrator can create, edit, preview, publish, unpublish, and update a project through server-side actions.
 - No browser code requires or receives direct PostgreSQL credentials.
-- Public pages remain available from the last good snapshot during a simulated database outage.
+- The profile, headline, value proposition, contact or resume CTA, and core resume content remain visible from the last good snapshot during a simulated database outage.
+- Published project pages and public navigation remain available from the last good snapshot when they were included in that snapshot.
 - A failed snapshot generation leaves the previous snapshot intact.
 - Automated restore verification can restore a backup and prove database reads, public rendering, admin editing, and snapshot generation.
 - Relationship constraints and publication-state rules prevent orphaned or accidentally public records.
