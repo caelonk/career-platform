@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Career Platform{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav">
+        <a href="/">Profile</a>
+        <a href="/resume.pdf">Resume</a>
+        {% if request and request.url.path.startswith('/admin') %}
+          <a href="/auth/logout">Logout</a>
+        {% else %}
+          <a href="/auth/login">Admin</a>
+        {% endif %}
+      </nav>
+    </header>
+    <main class="page-shell">{% block content %}{% endblock %}</main>
+  </body>
+</html>

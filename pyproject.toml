@@ -14,6 +14,7 @@ dependencies = [
   "pydantic-settings>=2.2,<3.0",
   "sqlalchemy>=2.0.30,<3.0",
   "alembic>=1.13,<2.0",
+  "python-multipart>=0.0.9,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -26,4 +27,4 @@ dev = [
 testpaths = ["tests"]
 
 [tool.setuptools]
-packages = ["app"]
+packages = ["app", "scripts"]

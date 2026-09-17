@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ profile.name if profile else 'Career Platform' }}{% endblock %}
+
+{% block content %}
+  <section class="hero card">
+    {% if profile %}
+      <p class="eyebrow">Business Transformation</p>
+      <h1>{{ profile.name }}</h1>
+      <p class="headline">{{ profile.headline }}</p>
+      <p>{{ profile.summary }}</p>
+      <div class="cta-row">
+        <a class="button" href="/resume.pdf">Download resume</a>
+        <a class="button secondary" href="mailto:{{ profile.email }}">Contact</a>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="section-block">
+    <h2>Featured project</h2>
+    {% if featured_projects %}
+      {% for project in featured_projects %}
+        <article class="card project-card">
+          <h3><a href="/projects/{{ project.slug }}">{{ project.title }}</a></h3>
+          <p>{{ project.summary }}</p>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p>No featured project is currently published.</p>
+    {% endif %}
+  </section>
+
+  <section class="section-block">
+    <h2>Resume highlights</h2>
+    {% if projects %}
+      {% for project in projects %}
+        <article class="card project-card">
+          <h3><a href="/projects/{{ project.slug }}">{{ project.title }}</a></h3>
+          <p>{{ project.summary }}</p>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p>No public project content has been published yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="section-block">
+    <h2>Roadmap</h2>
+    {% for section in placeholder_sections %}
+      <article class="card placeholder-card">
+        <h3>{{ section.title }}</h3>
+        <p>{{ section.description }}</p>
+      </article>
+    {% endfor %}
+  </section>
+{% endblock %}

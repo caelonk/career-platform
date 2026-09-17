@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Admin dashboard{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Admin dashboard</h1>
+    <p><a href="/admin/projects/new">Create project</a></p>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Title</th><th>Status</th><th>Slug</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for project in projects %}
+          <tr>
+            <td>{{ project.title }}</td>
+            <td>{{ project.publication_status }}</td>
+            <td>{{ project.slug }}</td>
+            <td><a href="/admin/projects/{{ project.id }}/edit">Edit</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

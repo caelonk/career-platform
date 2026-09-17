@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{% if project %}Edit project{% else %}New project{% endif %}{% endblock %}
+
+{% block content %}
+  <section class="card narrow-card">
+    <h1>{% if project %}Edit project{% else %}Create project{% endif %}</h1>
+    <form method="post" action="{% if project %}/admin/projects/{{ project.id }}{% else %}/admin/projects{% endif %}">
+      <label>
+        Title
+        <input type="text" name="title" value="{{ project.title if project else '' }}" required />
+      </label>
+      <label>
+        Slug
+        <input type="text" name="slug" value="{{ project.slug if project else '' }}" required />
+      </label>
+      <label>
+        Summary
+        <textarea name="summary" required>{{ project.summary if project else '' }}</textarea>
+      </label>
+      <label>
+        Status
+        <select name="publication_status">
+          <option value="draft" {% if project and project.publication_status == 'draft' %}selected{% endif %}>Draft</option>
+          <option value="published" {% if project and project.publication_status == 'published' %}selected{% endif %}>Published</option>
+          <option value="archived" {% if project and project.publication_status == 'archived' %}selected{% endif %}>Archived</option>
+        </select>
+      </label>
+      <button type="submit">Save</button>
+    </form>
+  </section>
+{% endblock %}

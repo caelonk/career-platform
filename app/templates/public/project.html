@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }}{% endblock %}
+
+{% block content %}
+  <article class="card project-page">
+    <p class="eyebrow">Case study</p>
+    <h1>{{ project.title }}</h1>
+    <p class="headline">{{ project.summary }}</p>
+    {% if project.context %}<h2>Context</h2><p>{{ project.context }}</p>{% endif %}
+    {% if project.problem %}<h2>Problem</h2><p>{{ project.problem }}</p>{% endif %}
+    {% if project.responsibilities %}<h2>Responsibilities</h2><p>{{ project.responsibilities }}</p>{% endif %}
+    {% if project.approach %}<h2>Approach</h2><p>{{ project.approach }}</p>{% endif %}
+    {% if project.outcomes %}<h2>Outcomes</h2><p>{{ project.outcomes }}</p>{% endif %}
+    {% if project.metrics %}
+      <ul>
+        {% for metric in project.metrics %}
+          <li><strong>{{ metric.label }}</strong>: {{ metric.value }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <p><a href="/">Back to profile</a></p>
+  </article>
+{% endblock %}

@@ -5,6 +5,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
+from app.routes.admin import router as admin_router
+from app.routes.auth import router as auth_router
+from app.routes.public import router as public_router
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -22,6 +25,9 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+    app.include_router(public_router)
+    app.include_router(auth_router)
+    app.include_router(admin_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:
