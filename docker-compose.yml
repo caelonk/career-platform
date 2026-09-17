@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: career-platform-app
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: sqlite:///./career_platform.db
+      SECRET_KEY: change-me-in-development
+      SNAPSHOT_DIR: /var/lib/career-platform/snapshots
+    volumes:
+      - .:/app
+      - ./snapshots:/var/lib/career-platform/snapshots
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: career-platform-postgres
+    environment:
+      POSTGRES_DB: career_platform
+      POSTGRES_USER: career_platform
+      POSTGRES_PASSWORD: career_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    profiles:
+      - postgres
+
+volumes:
+  postgres_data:
