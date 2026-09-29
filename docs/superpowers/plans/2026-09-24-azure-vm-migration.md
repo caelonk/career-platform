@@ -239,6 +239,21 @@
 
 ## Verify
 
+### Results (2026-09-29)
+
+| # | Check | Where | Command | Expected | Actual | Result |
+|---|---|---|---|---|---|---|
+| 1a | App health | VM | `curl -fsS http://127.0.0.1:8000/health` | `{"status":"ok"}` | `{"status":"ok"}` | Pass |
+| 1b | Profile on home page | VM | `curl -fsS http://127.0.0.1:8000/ \| grep -c "$NAME"` | ≥ 1 | 2 (page title and heading) | Pass |
+| 1c | Featured project | VM | Home page `Featured project` section | Technician Dispatch Dashboard | Technician Dispatch Dashboard | Pass |
+| 1d | Phone not published | VM | `curl -fsS http://127.0.0.1:8000/ \| grep -c "<phone>"` | 0 | 0 | Pass |
+| 2a | Published project pages | VM | `curl -w '%{http_code}' …/projects/<slug>` for each published slug | 4 × `200` | 4 × `200` | Pass |
+| 2b | Unknown or draft slug hidden | VM | `curl -w '%{http_code}' …/projects/not-a-real-project` | `404` | `404` | Pass |
+| 3a | Pages in browser via tunnel | Laptop | `http://localhost:8000` over `ssh -L 8000:127.0.0.1:8000` | Profile, featured project, 4 projects | Confirmed by owner | Pass |
+| 3b | Admin login | Laptop | `POST /auth/login` as `admin`, then `GET /admin` with cookie | `303` → `/admin`, then `200` | `303` → `/admin`, `200` | Pass |
+| 3c | Wrong password rejected | Laptop | `POST /auth/login` with a wrong password | `303` → `/auth/login?error=invalid` | `303` → `/auth/login?error=invalid` | Pass |
+| 3d | App not exposed publicly | Laptop | `curl http://$VM_IP:8000/health` | Connection fails (only SSH allowed) | Timed out | Pass |
+
 - [x] **Verify 1: Health and home page on the VM**
   - **Where:** VM
   - **Run:**
