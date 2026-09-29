@@ -1,10 +1,12 @@
 {
-  "generated_at": "2026-09-17T21:56:45.343272+00:00",
+  "generated_at": "2026-09-29T21:54:10.935915+00:00",
   "version": "1",
   "profile_path": "home.html",
   "project_paths": [
-    "projects/new-case-study-1.html",
-    "projects/featured-project.html"
+    "projects/technician-dispatch-dashboard.html",
+    "projects/third-party-vendor-risk-dashboard.html",
+    "projects/gdpr-ccpa-privacy-compliance-assessment.html",
+    "projects/legal-document-analyzer.html"
   ],
-  "checksum": "67e4be5ca0f370d138f9a6d4c8b82a29eeb3d6a4eb76261cef378ef8c82a6186"
+  "checksum": "72763f259c98b147acd146ccc17a170c496ee8290c8b921c7e9e6e18c6e10b62"
 }
