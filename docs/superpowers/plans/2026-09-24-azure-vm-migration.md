@@ -271,20 +271,20 @@
 
 ## Shutdown
 
-- [ ] **Shutdown 1: Stop Uvicorn**
+- [x] **Shutdown 1: Stop Uvicorn** — *Done 2026-09-29: Uvicorn logged a clean shutdown; nothing listening on :8000.*
   - **Where:** VM
   - **Run:** `kill "$(cat ~/uvicorn.pid)" && rm ~/uvicorn.pid`
   - **Why:** Clean stop so SQLite isn't mid-write when the disk goes cold.
   - **Check:** `ss -ltn | grep ':8000'` prints nothing.
   - **Undo:** Repeat Processes 1.
 
-- [ ] **Shutdown 2: Close the session and tunnel**
+- [x] **Shutdown 2: Close the session and tunnel** — *Done 2026-09-29: tunnel closed; no local listener on :8000.*
   - **Where:** Laptop
   - **Run:** `exit` in the SSH session; `Ctrl+C` in the tunnel window.
   - **Check:** Laptop prompt returns in both windows.
   - **Undo:** Server 4.
 
-- [ ] **Shutdown 3: Deallocate the VM**
+- [x] **Shutdown 3: Deallocate the VM** — *Done 2026-09-29: `VM deallocated`; static public IP retained.*
   - **Where:** Laptop (or Portal: *vm-career-platform → Stop*, which deallocates)
   - **Run:** `az vm deallocate -g rg-career-platform -n vm-career-platform`
   - **Why:** Stops compute billing. `az vm stop` would keep billing.
@@ -312,7 +312,8 @@ Then remove `sqlite3` per Packages 2 and revert the `uv.lock` commit only if you
 - Config 3: a random admin password was generated on the VM. Only its hash is stored in `.env`.
 - Data: the laptop database was empty, so the schema was created with Alembic and content was loaded from the owner's resume (phone omitted). The regenerated public snapshot (name and project summaries only) was committed as `6968ad7`.
 - Processes 1: `< /dev/null` was added to the `nohup` command so the non-interactive SSH session could return.
-- Remaining: Shutdown 1–3.
+- Shutdown 2: stopping the background tunnel task left its `ssh.exe` listening on :8000, so that exact process was ended.
+- All 25 steps are complete. The VM is deallocated.
 
 ## Self-review
 
