@@ -496,13 +496,15 @@ Downtime was about 4 seconds: 3 s of `RestartSec` plus about 1 s of startup. Uvi
 
 **What this is:** Namecheap is the *registrar*: it records that I own the name and tells the `.com` servers who answers for it. Cloudflare is the *DNS host*: its name servers hold my A records (`@` and `www` → `52.162.50.66`, set to DNS only, the gray cloud). Nothing on the VM changes, because Nginx's `server_name _` answers for any name.
 
-- [ ] **Domain 1: Check the switch and the address**
+- [x] **Domain 1: Check the switch and the address**
   - **Where:** Laptop
   - **Run:** `nslookup -type=NS <my-domain>`, then `nslookup <my-domain>`, or `nslookup <my-domain> 1.1.1.1` if my network is caching an old answer.
   - **Check:** The NS records are `*.ns.cloudflare.com`, and the address is `52.162.50.66`, not `104.x` or `172.x`, which would mean the proxy is on. `http://<my-domain>` shows my site; on campus Wi-Fi, use a phone with Wi-Fi off.
   - **Undo:** In Namecheap, set Nameservers back to Namecheap BasicDNS.
 
-**Results (2026-10-05, about 01:50 UTC; in progress):**
+**Results (2026-10-05):**
+
+*First check, about 01:50 UTC, before the switch was published:*
 
 Domain: `caelonk.me`, registered 2026-10-05 at Namecheap. Cloudflare Free plan, DNS only. Name servers changed in Namecheap at 01:43 UTC.
 
@@ -515,9 +517,21 @@ Domain: `caelonk.me`, registered 2026-10-05 at Namecheap. Cloudflare Free plan, 
 | Old answer still cached | — | `185.199.108–111.153` (GitHub Pages addresses that Namecheap had configured), `www` as an alias | Expected until the switch |
 | Nginx answers for the name, from inside the VM | `200`, my name | `caelonk.me` and `www.caelonk.me`: `200`, `Server: nginx`, "Caelon King" count 2 | Pass |
 | From my laptop on campus Wi-Fi | — | `503` "Web Page Blocked" from LMU's web filter; the request never reached the VM (no line in the app log) | Expected on campus |
-| `http://caelonk.me` in a browser, off campus or on a phone with Wi-Fi off | My site | _Pending: after the `.me` servers publish the change_ | |
 
-**Still to do:** when Cloudflare emails that the domain is active, run `nslookup -type=NS caelonk.me 1.1.1.1` (expect `*.ns.cloudflare.com`) and `nslookup caelonk.me 1.1.1.1` (expect `52.162.50.66`), then open `http://caelonk.me` on a phone with Wi-Fi off. The VM must be running for the browser check, and the site starts on its own at boot.
+*Second check, after Cloudflare reported the domain active:*
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| `.me` TLD server (`a0.nic.me`) | Cloudflare name servers | `naomi.ns.cloudflare.com`, `damiete.ns.cloudflare.com` | Pass |
+| `nslookup -type=NS caelonk.me 1.1.1.1` | `*.ns.cloudflare.com` | `naomi`, `damiete.ns.cloudflare.com` (TTL 1 day) | Pass |
+| `nslookup -type=NS caelonk.me 8.8.8.8` | `*.ns.cloudflare.com` | `naomi`, `damiete.ns.cloudflare.com` (TTL 6 h) | Pass |
+| `nslookup caelonk.me` and `www.caelonk.me` via `1.1.1.1` and `8.8.8.8` | `52.162.50.66`, not `104.x` or `172.x` | `52.162.50.66` for both names on both resolvers (TTL 300 s, DNS only) | Pass |
+| Campus (default) resolver | Catches up when old cached answers expire | Still returned Namecheap and GitHub Pages answers at first; it expires on its own | Expected |
+| VM restarted for this check (I started it in the portal) | Service starts at boot | Boot 01:56:30 UTC, `career-platform` active at 01:56:38 (8 s later), no login | Pass |
+| From the VM, using Azure's DNS (outside the campus network) | `200` with my name | `caelonk.me` → `52.162.50.66`, `200`, `Server: nginx/1.24.0`, "Caelon King" count 2; `www.caelonk.me` the same | Pass |
+| `http://caelonk.me` and `http://www.caelonk.me` on my phone with Wi-Fi off | My site | Landing page with my name and all expected content, for both | Pass |
+
+The site answers at my own name with no port number. The browser still says "Not secure" because there's no HTTPS yet; that's next session.
 
 ---
 
@@ -573,13 +587,24 @@ Scanned this file for my laptop's IP, the subscription and tenant IDs, my email 
 
 ## 8. Shutdown
 
-- [ ] **Shutdown 1: Deallocate (me, in the portal)**
+- [x] **Shutdown 1: Deallocate (me, in the portal)**
   - **Where:** Portal
   - **Run:** Stop, then wait for "Stopped (deallocated)". Keep `Allow-HTTP-80` for next session.
   - **Check:** `az vm show -d -g rg-career-platform -n vm-career-platform --query powerState -o tsv` → `VM deallocated`. The A records still point at the static IP, and the site comes back on its own at the next start.
   - **Undo:** Start the VM.
 
-**Results:**
+**Results (2026-10-05):**
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| Power state (I stopped it in the portal) | `VM deallocated` | `VM deallocated` | Pass |
+| Rules kept for next session | `Allow-SSH-Laptop` and `Allow-HTTP-80` | Both present (300/22, 320/80) | Pass |
+| Public IP kept | Same static IP | `52.162.50.66`, Static | Pass |
+| Site while off | No answer | `000` (timeout) | Expected |
+
+When the VM starts again, systemd starts `career-platform` and Nginx at boot (proved in Restart 1), so the site comes back with no login.
+
+The VM was started once more for the Domain 1 browser check (the service was up 8 s after boot), then I stopped it again in the portal. Final state: `VM deallocated`, with `Allow-SSH-Laptop` (22) and `Allow-HTTP-80` (80) kept.
 
 ---
 
