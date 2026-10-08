@@ -16,7 +16,8 @@
 |---|---|---|
 | Live site | `caelonk.me` and `www.caelonk.me`, Cloudflare DNS **A records → `52.162.50.66`, DNS only (gray cloud)**, Let's Encrypt cert on the VM's Nginx | Domain steps replace the A records with Railway's CNAME and TXT records |
 | VM app | `/home/azureuser/career-platform`, systemd `career-platform`, `uvicorn … --workers 2` on `127.0.0.1:8000`, at commit `626e18c` | Same entry point on Railway: `app.main:create_app --factory` |
-| Live data | SQLite `~/career-platform/career_platform.db` on the VM: 1 profile, 4 published projects, 3 organizations, 5 roles, 6 metrics, 0 media links | Data steps copy it and compare row counts for **every** table |
+| Live data | SQLite `~/career-platform/career_platform.db` on the VM, at migration `20240917_initial_schema` (head). Row counts from the 2026-10-08 backup (`integrity_check` ok, every table identical to live): profiles 1, projects 4 (all published), project_metrics 6, media_links 0, organizations 3, roles 5, skills 39, project_skills 7, experiences 5, experience_skills 9, certifications 2, achievements 0, project_achievements 0 | Data steps copy it and compare row counts for **every** table. If the VM's counts have changed by D2, use the new numbers |
+| VM backup | `~/backups/career_platform-20261008-214842Z.db` on the VM (102,400 bytes, mode 600), taken with SQLite's online backup API | A restore point on the VM's own disk. D2's laptop copy covers losing the VM |
 | Postgres driver | **None installed.** `pyproject.toml` has no psycopg/psycopg2 | Without Task 1, a bare `postgresql://` URL makes SQLAlchemy import psycopg2 and the app crashes at boot |
 | URL handling | `app/db/session.py` passes `DATABASE_URL` straight to `create_engine`; `migrations/env.py` overwrites `sqlalchemy.url` from settings | Task 1 normalizes in one place (`app/config.py`) and both use it |
 | Migrations | One revision, `20240917_initial_schema`; `alembic.ini` has `script_location = migrations` | Pre-deploy runs `alembic upgrade head` on Railway |
@@ -954,7 +955,19 @@ git commit -m "docs: describe the Railway deployment"
       --source ~/Downloads/railway-migration/career_platform-vm-$(date +%F).db --target-env DATABASE_PUBLIC_URL
     ```
   - **Why `DATABASE_PUBLIC_URL`:** `DATABASE_URL` points at `postgres.railway.internal`, which only resolves inside Railway. The public URL goes through Railway's TCP proxy and works from the laptop.
-  - **Check:** `Target:` shows a `*.proxy.rlwy.net` host with the password masked. Then the per-table counts print: `profiles 1`, `organizations 3`, `roles 5`, `projects 4`, `project_metrics 6`, `media_links 0`, plus every other table, and finally `Copy complete; row counts match.` If the counts differ from those, compare against the VM itself with Python's `sqlite3` before continuing.
+  - **Check:** `Target:` shows a `*.proxy.rlwy.net` host with the password masked. The script prints one line for each of the 13 model tables (`alembic_version` isn't copied, because the pre-deploy migration already wrote it), then `Copy complete; row counts match.` Expected counts (from the 2026-10-08 backup):
+
+    | Table | Rows | Table | Rows |
+    |---|---|---|---|
+    | profiles | 1 | skills | 39 |
+    | projects | 4 | project_skills | 7 |
+    | project_metrics | 6 | experiences | 5 |
+    | media_links | 0 | experience_skills | 9 |
+    | organizations | 3 | certifications | 2 |
+    | roles | 5 | achievements | 0 |
+    | | | project_achievements | 0 |
+
+    If any count differs, compare against the D2 laptop copy with Python's `sqlite3` before continuing. A difference that the laptop copy also shows means the VM's data changed after 2026-10-08; record the new numbers. A difference only in Postgres is a failed copy, so stop and report.
   - **If it says `Target is not empty`:** something already wrote to Postgres (for example, an admin save on the Railway URL). Stop and report; don't clear the database without the Owner's decision.
 
 ## Verify on the Railway address (before touching DNS)
