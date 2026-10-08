@@ -1,6 +1,8 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -8,6 +10,7 @@ from app.config import get_settings
 from app.db.models import Base, Profile, Project
 from app.db import session as db_session_module
 from app.main import create_app
+from tests.postgres_support import require_local_test_database
 
 
 @pytest.fixture
@@ -69,3 +72,17 @@ def e2e_client(tmp_path, monkeypatch):
     with TestClient(app) as client:
         yield client
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def postgres_url():
+    raw = os.environ.get("TEST_POSTGRES_URL")
+    if not raw:
+        pytest.skip("TEST_POSTGRES_URL is not set")
+    url = require_local_test_database(raw)
+    engine = create_engine(url)
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
+    engine.dispose()
+    return url
