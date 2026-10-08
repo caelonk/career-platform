@@ -222,3 +222,4 @@ __marimo__/
 
 # Local SQLite database (created by the app and by test runs)
 career_platform.db
+.impeccable/hook.cache.json
