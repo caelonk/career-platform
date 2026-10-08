@@ -3,54 +3,89 @@
 {% block title %}{{ profile.name if profile else 'Career Platform' }}{% endblock %}
 
 {% block content %}
-  <section class="hero card">
+  {% macro project_meta(project) %}
+    {% set parts = [project.role_name, project.organization_name, project | period] | select | list %}
+    {% if parts %}<p class="meta">{{ parts | join(' · ') }}</p>{% endif %}
+  {% endmacro %}
+
+  <section class="intro" aria-labelledby="intro-name">
     {% if profile %}
-      <p class="eyebrow">Business Transformation</p>
-      <h1>{{ profile.name }}</h1>
-      <p class="headline">{{ profile.headline }}</p>
-      <p>{{ profile.summary }}</p>
+      {% set headline = profile.headline.split(' · ', 1) %}
+      <h1 id="intro-name" class="intro__name">{{ profile.name }}</h1>
+      <p class="intro__role">{{ headline[0] }}</p>
+      {% if headline | length > 1 %}<p class="intro__focus">{{ headline[1] }}</p>{% endif %}
+      <p class="intro__summary">{{ profile.summary }}</p>
       <div class="cta-row">
-        <a class="button" href="/resume.pdf">Download resume</a>
-        <a class="button secondary" href="mailto:{{ profile.email }}">Contact</a>
+        <a class="button" href="/resume.pdf">Download resume <span class="button__hint">PDF</span></a>
+        {% if profile.email %}<a class="button button--secondary" href="mailto:{{ profile.email }}">Email {{ profile.name.split(' ')[0] }}</a>{% endif %}
+      </div>
+    {% else %}
+      <h1 id="intro-name" class="intro__name">Portfolio</h1>
+      <p class="intro__summary">Profile details are being updated. The resume below has the full history.</p>
+      <div class="cta-row">
+        <a class="button" href="/resume.pdf">Download resume <span class="button__hint">PDF</span></a>
       </div>
     {% endif %}
   </section>
 
-  <section class="section-block">
-    <h2>Featured project</h2>
-    {% if featured_projects %}
-      {% for project in featured_projects %}
-        <article class="card project-card">
-          <h3><a href="/projects/{{ project.slug }}">{{ project.title }}</a></h3>
-          <p>{{ project.summary }}</p>
-        </article>
-      {% endfor %}
-    {% else %}
-      <p>No featured project is currently published.</p>
-    {% endif %}
-  </section>
+  <section id="projects" class="section" aria-labelledby="projects-title">
+    <h2 id="projects-title" class="section__title">Projects</h2>
 
-  <section class="section-block">
-    <h2>Resume highlights</h2>
-    {% if projects %}
-      {% for project in projects %}
-        <article class="card project-card">
-          <h3><a href="/projects/{{ project.slug }}">{{ project.title }}</a></h3>
-          <p>{{ project.summary }}</p>
-        </article>
-      {% endfor %}
-    {% else %}
-      <p>No public project content has been published yet.</p>
-    {% endif %}
-  </section>
-
-  <section class="section-block">
-    <h2>Roadmap</h2>
-    {% for section in placeholder_sections %}
-      <article class="card placeholder-card">
-        <h3>{{ section.title }}</h3>
-        <p>{{ section.description }}</p>
+    {% if featured_project %}
+      {% set project = featured_project %}
+      <article class="feature{% if project.metrics %} feature--with-stats{% endif %}">
+        <h3 class="feature__title"><a class="stretched" href="/projects/{{ project.slug }}">{{ project.title }}</a></h3>
+        {{ project_meta(project) }}
+        <p class="feature__summary">{{ project.summary }}</p>
+        {% if project.metrics %}
+          <dl class="stats">
+            {% for metric in project.metrics %}
+              <div class="stat">
+                <dt class="stat__label">{{ metric.label }}</dt>
+                <dd class="stat__value">{{ metric.value }}</dd>
+              </div>
+            {% endfor %}
+          </dl>
+        {% endif %}
+        <p class="feature__cta" aria-hidden="true">Read the case study <svg class="arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></p>
       </article>
-    {% endfor %}
+    {% endif %}
+
+    {% if projects %}
+      <ol class="project-list">
+        {% for project in projects %}
+          <li class="project-row">
+            <p class="project-row__period">{{ project | period }}</p>
+            <div class="project-row__body">
+              <h3 class="project-row__title"><a class="stretched" href="/projects/{{ project.slug }}">{{ project.title }}</a></h3>
+              <p class="project-row__summary">{{ project.summary }}</p>
+              {% if project.metrics %}
+                <ul class="tags" aria-label="Key figures">
+                  {% for metric in project.metrics %}
+                    <li class="tag">{{ metric.label }}: <span class="tag__value">{{ metric.value }}</span></li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
+    {% elif not featured_project %}
+      <p class="empty-note">No projects are published right now. The resume has the full list of work.</p>
+    {% endif %}
   </section>
+
+  {% if profile %}
+    <section id="contact" class="section contact" aria-labelledby="contact-title">
+      <h2 id="contact-title" class="section__title">Contact</h2>
+      {% if profile.email %}
+        <p class="contact__email"><a href="mailto:{{ profile.email }}">{{ profile.email }}</a></p>
+      {% endif %}
+      <ul class="contact__details">
+        {% if profile.location %}<li>{{ profile.location }}</li>{% endif %}
+        {% if profile.phone %}<li><a href="tel:{{ profile.phone }}">{{ profile.phone }}</a></li>{% endif %}
+        <li><a href="/resume.pdf">Resume (PDF)</a></li>
+      </ul>
+    </section>
+  {% endif %}
 {% endblock %}

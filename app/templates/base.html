@@ -4,20 +4,43 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Career Platform{% endblock %}</title>
+    {% set meta_description %}{% block description %}{{ profile.headline if profile else '' }}{% endblock %}{% endset %}
+    {% if meta_description %}
+      <meta name="description" content="{{ meta_description }}" />
+      <meta property="og:description" content="{{ meta_description }}" />
+    {% endif %}
+    <meta property="og:title" content="{{ self.title() }}" />
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <link rel="icon" href="{{ url_for('static', path='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="preload" href="{{ url_for('static', path='fonts/schibsted-grotesk-latin-wght.woff2') }}" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <nav class="nav">
-        <a href="/">Profile</a>
-        <a href="/resume.pdf">Resume</a>
-        {% if request and request.url.path.startswith('/admin') %}
-          <a href="/auth/logout">Logout</a>
-        {% else %}
-          <a href="/auth/login">Admin</a>
-        {% endif %}
-      </nav>
+      <div class="site-header__inner">
+        <a class="wordmark" href="/">{{ profile.name if profile else 'Home' }}</a>
+        <nav class="nav" aria-label="Main">
+          {% if request and request.url.path.startswith('/admin') %}
+            <a href="/admin">Dashboard</a>
+            <a href="/auth/logout">Log out</a>
+          {% else %}
+            <a href="/#projects">Projects</a>
+            <a href="/resume.pdf">Resume <span class="nav__hint">PDF</span></a>
+            <a href="/#contact">Contact</a>
+          {% endif %}
+        </nav>
+      </div>
     </header>
-    <main class="page-shell">{% block content %}{% endblock %}</main>
+    <main id="main" class="page-shell">{% block content %}{% endblock %}</main>
+    {% if profile %}
+      <footer class="site-footer">
+        <div class="site-footer__inner">
+          <p>{{ profile.name }}{% if profile.location %} · {{ profile.location }}{% endif %}</p>
+          <p><a href="#main">Back to top</a></p>
+        </div>
+      </footer>
+    {% endif %}
   </body>
 </html>

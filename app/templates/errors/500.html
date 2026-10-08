@@ -4,13 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Server Error</title>
+    <link rel="icon" href="{{ url_for('static', path='favicon.svg') }}" type="image/svg+xml" />
     <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}" />
   </head>
   <body class="error-page">
-    <main class="card">
-      <p class="eyebrow">Career Platform</p>
-      <h1>Something went wrong</h1>
-      <p>{{ detail }}</p>
+    <main class="notice">
+      <h1 class="notice__title">Something went wrong</h1>
+      <p class="notice__body">{{ detail }} Try again in a moment.</p>
+      <div class="cta-row">
+        <a class="button" href="/">Go to the home page</a>
+      </div>
     </main>
   </body>
 </html>

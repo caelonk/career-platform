@@ -25,11 +25,35 @@ def _session_factory():
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parents[1] / "templates"))
 
-PLACEHOLDER_SECTIONS = [
-    {"title": "Case studies in progress", "description": "A deeper transformation narrative and client story is being prepared."},
-    {"title": "Career tools coming soon", "description": "A curated set of frameworks and templates will be shared here."},
-    {"title": "Insights coming soon", "description": "A regular stream of strategy reflections and lessons will appear soon."},
-]
+_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _split_date(value: str) -> tuple[str, str | None]:
+    """Split a stored "YYYY" or "YYYY-MM" date into (year, month name)."""
+    year, _, month = value.partition("-")
+    if month.isdigit() and 1 <= int(month) <= 12:
+        return year, _MONTHS[int(month) - 1]
+    return year, None
+
+
+def format_period(start: str | None, end: str | None) -> str:
+    """Render a project's date range, e.g. "Jul – Aug 2026" or "Dec 2025 – Feb 2026"."""
+    if not start:
+        return ""
+    start_year, start_month = _split_date(start)
+    if not end:
+        return f"{start_month} {start_year}" if start_month else start_year
+    end_year, end_month = _split_date(end)
+    end_text = f"{end_month} {end_year}" if end_month else end_year
+    if start_year == end_year:
+        if start_month and end_month and start_month != end_month:
+            return f"{start_month} – {end_text}"
+        return end_text
+    start_text = f"{start_month} {start_year}" if start_month else start_year
+    return f"{start_text} – {end_text}"
+
+
+templates.env.filters["period"] = lambda project: format_period(project.start_date, project.end_date)
 
 
 def _snapshot_path_for(page_name: str) -> Path:
@@ -49,14 +73,13 @@ async def home(request: Request):
     session = _session_factory()()
     try:
         profile = get_public_profile(session)
-        featured = list_public_projects(session, featured_only=True)
         projects = list_public_projects(session)
+        featured = next((project for project in projects if project.featured), None)
         context = {
             "request": request,
             "profile": profile,
-            "featured_projects": featured,
-            "projects": projects,
-            "placeholder_sections": PLACEHOLDER_SECTIONS,
+            "featured_project": featured,
+            "projects": [project for project in projects if project is not featured],
         }
         return templates.TemplateResponse(request, "public/home.html", context)
     except Exception:
@@ -78,7 +101,18 @@ async def project_detail(request: Request, slug: str):
             if fallback is not None:
                 return fallback
             raise HTTPException(status_code=404, detail="Project not found.")
-        return templates.TemplateResponse(request, "public/project.html", {"request": request, "project": project})
+        published = list_public_projects(session)
+        slugs = [summary.slug for summary in published]
+        next_project = None
+        if project.slug in slugs and len(slugs) > 1:
+            next_project = published[(slugs.index(project.slug) + 1) % len(slugs)]
+        context = {
+            "request": request,
+            "profile": get_public_profile(session),
+            "project": project,
+            "next_project": next_project,
+        }
+        return templates.TemplateResponse(request, "public/project.html", context)
     except Exception:
         fallback = _fallback_snapshot(f"projects/{slug}")
         if fallback is not None:

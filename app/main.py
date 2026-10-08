@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
 from app.routes.admin import router as admin_router
@@ -40,6 +42,17 @@ def create_app() -> FastAPI:
             "errors/500.html",
             {"request": request, "detail": "An internal server error occurred."},
         )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception(request: Request, exc: StarletteHTTPException):
+        if exc.status_code == 404 and "text/html" in request.headers.get("accept", ""):
+            return templates.TemplateResponse(
+                request,
+                "errors/404.html",
+                {"request": request, "detail": exc.detail},
+                status_code=404,
+            )
+        return await http_exception_handler(request, exc)
 
     @app.exception_handler(500)
     async def internal_server_error(request: Request, exc: Exception):

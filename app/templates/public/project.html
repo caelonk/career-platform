@@ -1,24 +1,64 @@
 {% extends "base.html" %}
 
-{% block title %}{{ project.title }}{% endblock %}
+{% block title %}{{ project.title }}{% if profile %} · {{ profile.name }}{% endif %}{% endblock %}
+{% block description %}{{ project.summary }}{% endblock %}
+{% block og_type %}article{% endblock %}
 
 {% block content %}
-  <article class="card project-page">
-    <p class="eyebrow">Case study</p>
-    <h1>{{ project.title }}</h1>
-    <p class="headline">{{ project.summary }}</p>
-    {% if project.context %}<h2>Context</h2><p>{{ project.context }}</p>{% endif %}
-    {% if project.problem %}<h2>Problem</h2><p>{{ project.problem }}</p>{% endif %}
-    {% if project.responsibilities %}<h2>Responsibilities</h2><p>{{ project.responsibilities }}</p>{% endif %}
-    {% if project.approach %}<h2>Approach</h2><p>{{ project.approach }}</p>{% endif %}
-    {% if project.outcomes %}<h2>Outcomes</h2><p>{{ project.outcomes }}</p>{% endif %}
+  {% set arrow_right %}<svg class="arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endset %}
+  <article class="case">
+    <p class="backlink">
+      <a href="/#projects"><svg class="arrow arrow--back" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M13 8H4M7.5 4.5 4 8l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>All projects</a>
+    </p>
+
+    <header class="case__header">
+      <h1 class="case__title">{{ project.title }}</h1>
+      {% set parts = [project.role_name, project.organization_name, project | period] | select | list %}
+      {% if parts %}<p class="meta">{{ parts | join(' · ') }}</p>{% endif %}
+      <p class="case__lede">{{ project.summary }}</p>
+      {% if project.media_links %}
+        <div class="cta-row">
+          {% for link in project.media_links %}
+            <a class="button{% if not loop.first %} button--secondary{% endif %}" href="{{ link.url }}" rel="noopener">{{ link.label }}</a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </header>
+
     {% if project.metrics %}
-      <ul>
+      <dl class="stats stats--case">
         {% for metric in project.metrics %}
-          <li><strong>{{ metric.label }}</strong>: {{ metric.value }}</li>
+          <div class="stat">
+            <dt class="stat__label">{{ metric.label }}</dt>
+            <dd class="stat__value">{{ metric.value }}</dd>
+          </div>
         {% endfor %}
-      </ul>
+      </dl>
     {% endif %}
-    <p><a href="/">Back to profile</a></p>
+
+    {% for heading, body in [
+      ('Context', project.context),
+      ('Problem', project.problem),
+      ('Responsibilities', project.responsibilities),
+      ('Approach', project.approach),
+      ('Outcomes', project.outcomes),
+    ] if body %}
+      <section class="case__section">
+        <h2 class="case__heading">{{ heading }}</h2>
+        <p class="prose">{{ body }}</p>
+      </section>
+    {% endfor %}
+
+    <footer class="case__footer">
+      {% if next_project %}
+        <a class="next-link" href="/projects/{{ next_project.slug }}">
+          <span class="next-link__label">Next project</span>
+          <span class="next-link__title">{{ next_project.title }} {{ arrow_right }}</span>
+        </a>
+      {% endif %}
+      {% if profile and profile.email %}
+        <p class="case__contact">Questions about this project? <a href="mailto:{{ profile.email }}">Email {{ profile.name.split(' ')[0] }}</a>.</p>
+      {% endif %}
+    </footer>
   </article>
 {% endblock %}

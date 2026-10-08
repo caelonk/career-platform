@@ -10,11 +10,22 @@ from app.schemas.content import PublicProfile, PublicProject, PublicProjectSumma
 
 
 def _project_metrics(project: Project):
-    return [ProjectMetricSchema.model_validate(metric) for metric in project.metrics]
+    metrics = sorted(project.metrics, key=lambda metric: metric.display_order)
+    return [ProjectMetricSchema.model_validate(metric) for metric in metrics]
 
 
 def _project_media(project: Project):
-    return [MediaLinkSchema.model_validate(link) for link in project.media_links]
+    links = sorted(project.media_links, key=lambda link: link.display_order)
+    return [MediaLinkSchema.model_validate(link) for link in links]
+
+
+def _project_fields(project: Project) -> dict:
+    return {
+        **project.__dict__,
+        "organization_name": project.organization.name if project.organization else None,
+        "role_name": project.role.name if project.role else None,
+        "metrics": _project_metrics(project),
+    }
 
 
 def get_public_profile(session: Session) -> PublicProfile | None:
@@ -26,19 +37,11 @@ def get_public_profile(session: Session) -> PublicProfile | None:
 
 def list_public_projects(session: Session, featured_only: bool = False) -> list[PublicProjectSummary]:
     projects = repo_list_public_projects(session, featured_only=featured_only)
-    return [PublicProjectSummary.model_validate(project) for project in projects]
+    return [PublicProjectSummary.model_validate(_project_fields(project)) for project in projects]
 
 
 def get_public_project(session: Session, slug: str) -> PublicProject | None:
     project: Project | None = repo_get_public_project(session, slug)
     if project is None:
         return None
-    return PublicProject.model_validate(
-        {
-            **project.__dict__,
-            "organization_name": project.organization.name if project.organization else None,
-            "role_name": project.role.name if project.role else None,
-            "metrics": _project_metrics(project),
-            "media_links": _project_media(project),
-        }
-    )
+    return PublicProject.model_validate({**_project_fields(project), "media_links": _project_media(project)})

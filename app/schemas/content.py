@@ -28,6 +28,11 @@ class PublicProjectSummary(BaseModel):
     slug: str
     summary: str
     featured: bool = False
+    start_date: str | None = None
+    end_date: str | None = None
+    organization_name: str | None = None
+    role_name: str | None = None
+    metrics: list[ProjectMetricSchema] = Field(default_factory=list)
 
 
 class PublicProject(PublicProjectSummary):
@@ -36,11 +41,6 @@ class PublicProject(PublicProjectSummary):
     responsibilities: str | None = None
     approach: str | None = None
     outcomes: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
-    organization_name: str | None = None
-    role_name: str | None = None
-    metrics: list[ProjectMetricSchema] = Field(default_factory=list)
     media_links: list[MediaLinkSchema] = Field(default_factory=list)
 
 
