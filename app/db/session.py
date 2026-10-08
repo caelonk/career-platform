@@ -9,11 +9,14 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine_kwargs = {}
-if settings.database_url.startswith("sqlite"):
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
-    engine_kwargs["poolclass"] = StaticPool
-engine: Engine = create_engine(settings.database_url, **engine_kwargs)
+
+def engine_options(database_url: str) -> dict:
+    if database_url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}, "poolclass": StaticPool}
+    return {"pool_pre_ping": True}
+
+
+engine: Engine = create_engine(settings.database_url, **engine_options(settings.database_url))
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False)
 
 

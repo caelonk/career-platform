@@ -1,7 +1,17 @@
 from functools import lru_cache
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_POSTGRES_PREFIXES = ("postgres://", "postgresql://")
+
+
+def normalize_database_url(url: str) -> str:
+    """Point Postgres URLs at the psycopg 3 driver; Railway hands out bare postgresql:// URLs."""
+    for prefix in _POSTGRES_PREFIXES:
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
 
 
 class Settings(BaseSettings):
@@ -17,6 +27,11 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url_field(cls, value: str) -> str:
+        return normalize_database_url(value)
 
     @model_validator(mode="after")
     def validate_production_settings(self):
