@@ -19,7 +19,8 @@
 | Whole-branch review | Done: ready to merge with fixes. Its one code finding is fixed in `776b3fa` (see Task 2) |
 | R1 | Done; results under R1 |
 | D1–D3 | Done early on 2026-10-10, before the first deploy; results under Data |
-| R2, R3, R4, V1–V3, Domain, Shutdown, Record | Not done |
+| R2 | Done 2026-10-10; results under R2 |
+| R3, R4, V1–V3, Domain, Shutdown, Record | Not done |
 
 Changes from the plan as first written:
 
@@ -925,7 +926,7 @@ git commit -m "docs: describe the Railway deployment"
   | App deploys | 4, all **failed** at build on 2026-10-08 (commits `626e18c`, `ae8b4f5`, `aa5bc31`): `error: package directory 'scripts' does not exist`, from the old Dockerfile. Fixed by Task 5 once merged |
   | Domains / app volume | None |
 
-- [ ] **R2: Set the app service's variables**
+- [x] **R2: Set the app service's variables**
   - **Where:** Laptop, Git Bash in `~/career-platform`. The Agent sets the three non-secret values and the new `SECRET_KEY`. The **Owner** sets `ADMIN_PASSWORD`, because that command reads the VM's `.env`. Secrets go in through stdin and command output is discarded, so nothing is printed.
   - **Run (Agent):**
     ```bash
@@ -942,6 +943,19 @@ git commit -m "docs: describe the Railway deployment"
   - **Check:** `railway variables --service career-platform --kv | cut -d= -f1 | grep -v '^RAILWAY_'` lists exactly `ADMIN_PASSWORD`, `DATABASE_URL`, `ENVIRONMENT`, `SECRET_KEY`, `SNAPSHOT_DIR`. A check that prints only yes/no confirms `ENVIRONMENT` is exactly `production`, `ADMIN_PASSWORD` starts with `pbkdf2_sha256$` and is not the repository default, and `SECRET_KEY` is at least 32 characters.
   - **If `ADMIN_PASSWORD` comes out empty:** the VM's `.env` has no such line. The Owner sets a new one instead: `.venv/Scripts/python -c 'from app.services.auth import hash_password; import getpass; print(hash_password(getpass.getpass()), end="")' | railway variable set ADMIN_PASSWORD --stdin --service career-platform --skip-deploys > /dev/null`.
   - **Undo:** `railway variable delete <NAME> --service career-platform` (or delete in the dashboard).
+
+  **Results (2026-10-10):** The Agent set `DATABASE_URL`, `ENVIRONMENT`, `SNAPSHOT_DIR` and `SECRET_KEY`; the Owner set `ADMIN_PASSWORD`. No deploy was triggered.
+
+  | Check (yes/no only, values never printed) | Result |
+  |---|---|
+  | Names are exactly `ADMIN_PASSWORD`, `DATABASE_URL`, `ENVIRONMENT`, `SECRET_KEY`, `SNAPSHOT_DIR` | Pass |
+  | `ENVIRONMENT` is exactly `production` | Pass |
+  | `SNAPSHOT_DIR` is `/data/snapshots` | Pass (after the Git Bash path fix) |
+  | `DATABASE_URL` resolves to the same private address as before | Pass |
+  | `SECRET_KEY` is at least 32 characters, not a repository default, no stray whitespace | Pass |
+  | `ADMIN_PASSWORD` is a four-part `pbkdf2_sha256` hash, not the repository default, no quotes or whitespace | Pass |
+
+  Not yet proven: that the hash is the one your password matches. V2's admin login proves that.
 
 - [ ] **R3: Add a volume for snapshots**
   - **Where:** Agent, Laptop
