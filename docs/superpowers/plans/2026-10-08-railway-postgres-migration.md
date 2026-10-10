@@ -21,7 +21,10 @@
 | D1–D3 | Done early on 2026-10-10, before the first deploy; results under Data |
 | R2 | Done 2026-10-10; results under R2 |
 | R3 | Done 2026-10-10; results under R3 |
-| R4, V1–V3, Domain, Shutdown, Record | Not done |
+| R4 | Deployed 2026-10-10 and serving `caelonk.me`. Open: Railway ignored `railway.json`, so the pre-deploy command and health check aren't set |
+| V1 | Passed on `https://caelonk.me` (under R4's results) |
+| Domain | `caelonk.me` was already on Railway (since 2026-10-08). `www.caelonk.me` still points at the VM |
+| V2, V3, Domain for `www`, Shutdown, Record | Not done |
 
 Changes from the plan as first written:
 
@@ -972,7 +975,7 @@ git commit -m "docs: describe the Railway deployment"
   | Volume | `career-platform-volume`, attached to `career-platform`, mount path `/data`, 0 MB of 500 MB, Ready | Pass |
   | Side effect | Adding the volume started a build of `main` (deployment `0679767a`). It failed at the same `scripts` step as before, as expected with the old Dockerfile | Expected |
 
-- [ ] **R4: First deploy: merge `railway-migration` into `main`**
+- [x] **R4: First deploy: merge `railway-migration` into `main`** (deployed; pre-deploy and health check still to fix)
   - **Before:** R2 and R3 are done and R2's check passed. In the dashboard (Owner), career-platform → Settings → Deploy has **no custom Start Command**; one would replace the Dockerfile's command and drop the proxy flags.
   - **Where:** Owner decides when; Agent runs it on the Owner's word.
   - **Run:**
@@ -990,7 +993,28 @@ git commit -m "docs: describe the Railway deployment"
     - `curl -s -o /dev/null -w "%{http_code}" https://<app>.up.railway.app/health` returns `200`, and the home page returns `200` with "Caelon King" (the data is already loaded).
     - Logging in at `/auth/login` as `admin` with the password `admin-password` is **rejected**. That is the repository's default; accepting it would mean R2's hash didn't take.
   - **If it stops at startup with `SECRET_KEY must be set…` or `ADMIN_PASSWORD must be set…`:** R2's values are missing or are the defaults. Fix them; Railway redeploys.
-  - **Undo:** `git revert` the merge on `main` and push. caelonk.me is still on the VM at this point, so nothing public changes.
+  - **Undo:** `git revert` the merge on `main` and push. (Written when caelonk.me was thought to still be on the VM; see Results.)
+
+  **Results (2026-10-10):** Merged by fast-forward and pushed (`aa5bc31..36b535e`, 11 commits). Deployment `573688af` built from the new Dockerfile and reached **SUCCESS**.
+
+  | Check | Expected | Actual | Result |
+  |---|---|---|---|
+  | No custom Start Command (Owner, dashboard) | None | None | Pass |
+  | Build | New Dockerfile, `uv sync --locked` | Both `uv sync` steps ran; build succeeded | Pass |
+  | Startup | Uvicorn on `0.0.0.0:$PORT`, 2 workers, volume mounted | `0.0.0.0:8080`, 2 server processes, volume mounted, no errors | Pass |
+  | Pre-deploy phase | `alembic upgrade head` runs (no `Running upgrade` line) | **Did not run.** Railway applied nothing from `railway.json`: the deployment's settings show `preDeployCommand: null`, `healthcheckPath: null`, and the default 10 restart retries instead of 5 | **Fail** |
+  | Health check gate | `/health` checked before going live | Not configured (same cause) | **Fail** |
+  | `/health`, home page | `200`; home shows "Caelon King" | `200`; name appears 5 times; stats `10,000` and `2` render | Pass |
+  | Default admin password rejected | `admin` / `admin-password` refused | `303` to `/auth/login?error=invalid`, no cookie set | Pass |
+
+  **Found during this step: `caelonk.me` was already on Railway.** The service already had `caelonk.me` as a custom domain (created 2026-10-08 22:16 UTC, verified, Let's Encrypt certificate valid from 2026-10-08 to 2027-01-06), and public DNS for `caelonk.me` already resolved to Railway, not to the VM. `www.caelonk.me` still resolves to the VM (`52.162.50.66`). So:
+
+  - This merge put the Railway app live on `caelonk.me` immediately. Domain 1–2 are already done for the bare domain and remain to do for `www`.
+  - From the DNS change on 2026-10-08 until this deploy, `caelonk.me` pointed at a Railway service with no successful deployment, so the bare domain was most likely showing a Railway error page for about two days. `www.caelonk.me` kept working from the VM.
+
+  **V1 run on `https://caelonk.me` right after the deploy:** 4 project pages `200`; stylesheet href `https://caelonk.me/static/css/site.css`; stylesheet and font `200`; bad slug `404 text/html`; resume `200`; `http://caelonk.me` → `301` to `https://`; response headers `server: railway-hikari` and `x-railway-edge`.
+
+  **Still open from R4:** the pre-deploy command and health check. Until they're set, a future migration would not be applied on deploy, and Railway would route traffic to a new deployment without checking `/health`. Fix (Owner, dashboard): career-platform → Settings → Deploy → **Pre-deploy Command** `alembic upgrade head`, **Healthcheck Path** `/health`. Then redeploy and confirm the pre-deploy phase logs `Context impl PostgresqlImpl`.
 
 ## Data (done early, 2026-10-10)
 
