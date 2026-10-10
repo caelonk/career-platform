@@ -10,6 +10,23 @@
 
 **Spec:** The owner's request (2026-10-08): "Inspect my app and plan its move to Railway and PostgreSQL. The Railway project already exists with Postgres and a web service." Decisions made with the owner the same day: cut caelonk.me over to Railway; keep the VM **deallocated** afterwards as the rollback copy (don't delete it); the owner installs the Railway CLI and runs `railway login` before execution starts. Background: `docs/superpowers/specs/2026-09-15-personal-career-platform-design.md`, the VM as operated in `docs/superpowers/plans/2026-10-01-operate-the-vm.md`, and `docs/how-this-site-is-secured.md`.
 
+## Execution status (updated 2026-10-10)
+
+| Part | State |
+|---|---|
+| R0, R0b | Done (Railway CLI 5.64.1, logged in; Docker running) |
+| Tasks 1–6 | Done on branch `railway-migration` (`dba4993`, `d41968c`, `aa519d9`, `3dccd86`, `df4ef2a`, `b6b4d75`), not merged |
+| Whole-branch review | Done: ready to merge with fixes. Its one code finding is fixed in `776b3fa` (see Task 2) |
+| R1 | Done; results under R1 |
+| D1–D3 | Done early on 2026-10-10, before the first deploy; results under Data |
+| R2, R3, R4, V1–V3, Domain, Shutdown, Record | Not done |
+
+Changes from the plan as first written:
+
+- The app service is named `career-platform`, not `web`.
+- Work is on a branch, and **`main` is merged only after R2 and R3**, because `main` deploys to Railway automatically.
+- The Railway database was migrated and loaded by hand before the first deploy, so R4's pre-deploy migration has nothing to do.
+
 ## Facts this plan relies on (checked 2026-10-08)
 
 | Fact | Value | Consequence |
@@ -35,7 +52,8 @@
 - Secrets are never printed, echoed, committed, or pasted into chat. Commands substitute them inline (`"$(…)"`) or let `railway run` inject them.
 - The VM's SQLite file is never modified. It stays the rollback copy.
 - No admin edits on the VM from the start of the Data steps until the domain cutover. Anything edited there in that window is lost.
-- Railway names below assume the database service is called `Postgres` and the app service is called `web`. R1 records the real names; substitute them everywhere if they differ.
+- Railway services: the database is `Postgres` and the app is `career-platform` (confirmed in R1), in project `motivated-solace`, environment `production`.
+- `main` deploys to Railway automatically. Nothing from `railway-migration` is merged or pushed to `main` until R2 and R3 are done and R2's variable names are checked.
 - Code tasks follow TDD and commit separately. The full suite (`.venv/Scripts/python -m pytest -q`) passes after every task.
 - Postgres-backed tests run only when `TEST_POSTGRES_URL` is set, and only against `localhost`, `127.0.0.1` or `::1`, because they drop the `public` schema.
 - Stop at any **Check** that doesn't match and report the output before continuing.
@@ -210,6 +228,8 @@ git commit -m "feat: add psycopg driver and normalize Postgres database URLs"
 ---
 
 ### Task 2: Production refuses the repo's public default secrets
+
+> **Added after review (`776b3fa`):** the check as written below only ran when `ENVIRONMENT` was exactly `production`, so a missing or mis-cased variable skipped it. `Settings.is_production` is now also true whenever Railway's own `RAILWAY_ENVIRONMENT_NAME` is present, `ENVIRONMENT` is trimmed and lower-cased, and the admin cookie's `Secure` flag uses `is_production`. Tests: `tests/test_config.py`, `tests/services/test_auth_cookie.py`.
 
 **Files:**
 - Modify: `app/config.py`
@@ -856,8 +876,9 @@ docker rm -f cp-railway-check
 ```bash
 git add Dockerfile .dockerignore railway.json tests/operations/test_deployment_config.py
 git commit -m "feat: build for Railway with uv lock, PORT, proxy headers, and pre-deploy migrations"
-git push origin main
 ```
+
+Don't push to `main` here. `main` deploys automatically, and the service has no secrets set until R2. The merge is R4.
 
 ---
 
@@ -870,7 +891,7 @@ git push origin main
 
 - [ ] **Step 1: README**
   - Step 4's command becomes `uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload` (the existing `app.main:app` doesn't exist).
-  - Replace the "production path" paragraph with: "Production runs on Railway: the `web` service builds `Dockerfile` (see `railway.json`), runs `alembic upgrade head` before each deploy, and reads `DATABASE_URL` from the Railway Postgres service. `ENVIRONMENT=production` refuses the repository's default `SECRET_KEY` and admin password hash. Snapshots live on a Railway volume at `/data/snapshots`. The Azure VM is deallocated and kept as a rollback copy."
+  - Replace the "production path" paragraph with: "Production runs on Railway: the `career-platform` service builds `Dockerfile` (see `railway.json`), runs `alembic upgrade head` before each deploy, and reads `DATABASE_URL` from the Railway Postgres service. `ENVIRONMENT=production` refuses the repository's default `SECRET_KEY` and admin password hash. Snapshots live on a Railway volume at `/data/snapshots`. The Azure VM is deallocated and kept as a rollback copy."
   - Add a "Postgres tests" subsection: `docker compose --profile postgres up -d postgres`, then `TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/career_platform pytest -q`, with a note that these tests wipe that database's `public` schema.
   - Remove the "Add Azure VM and Nginx deployment configuration" milestone.
 - [ ] **Step 2: `.env.example`** gains a commented line: `# ADMIN_PASSWORD=<pbkdf2 hash from app.services.auth.hash_password>; required when ENVIRONMENT=production`.
@@ -887,88 +908,115 @@ git commit -m "docs: describe the Railway deployment"
 
 ## Railway setup
 
-- [ ] **R1: Link and inspect the existing project**
-  - **Where:** Agent, Laptop (after R0)
-  - **Run:**
-    ```bash
-    railway link            # pick the existing project, the production environment, and the web service
-    railway status
-    railway variables --service Postgres --kv | cut -d= -f1
-    railway variables --kv | cut -d= -f1
-    ```
-  - **Check, and record in Results:** The project name. The exact service names (if they aren't `Postgres` and `web`, substitute them everywhere below). Whether the web service's source is the GitHub repo `caelonk/career-platform`, branch `main` (dashboard → web → Settings → Source). The Postgres variable **names** include `DATABASE_URL` and `DATABASE_PUBLIC_URL`. Only names are printed, never values.
-  - **Decision:** If the web service is connected to GitHub, deploys come from `git push`. If it isn't, the Owner connects it in Settings → Source (preferred), or each deploy uses `railway up` from the laptop.
+- [x] **R1: Link and inspect the existing project**
+  - **Where:** Agent, Laptop
+  - **Run:** `railway link --project motivated-solace --environment production`, `railway status --json`, `railway deployment list --service career-platform --json`, and variable **names** only for both services.
 
-- [ ] **R2: Set the web service's variables**
-  - **Where:** Owner, Laptop. This reads the VM's `.env`, so it's an Owner step. Nothing is printed.
-  - **Run:**
+  **Results (2026-10-08, re-checked 2026-10-10):**
+
+  | Check | Actual |
+  |---|---|
+  | Project / environment | `motivated-solace` / `production`, linked in this folder |
+  | App service | `career-platform`; source GitHub `caelonk/career-platform`, branch `main`; deploys on every push |
+  | Database service | `Postgres` (image `postgres-ssl:18`, server 18.6), running, with its own volume |
+  | App variables | Only `DATABASE_URL`, equal to the Postgres service's private address (port 5432, database `railway`); whether it's a `${{…}}` reference isn't visible from the CLI |
+  | Railway-provided variables | `RAILWAY_ENVIRONMENT_NAME=production` is present on the app service |
+  | Postgres variables | `DATABASE_URL` and `DATABASE_PUBLIC_URL` both present |
+  | App deploys | 4, all **failed** at build on 2026-10-08 (commits `626e18c`, `ae8b4f5`, `aa5bc31`): `error: package directory 'scripts' does not exist`, from the old Dockerfile. Fixed by Task 5 once merged |
+  | Domains / app volume | None |
+
+- [ ] **R2: Set the app service's variables**
+  - **Where:** Laptop, Git Bash in `~/career-platform`. The Agent sets the three non-secret values and the new `SECRET_KEY`. The **Owner** sets `ADMIN_PASSWORD`, because that command reads the VM's `.env`. Secrets go in through stdin and command output is discarded, so nothing is printed.
+  - **Run (Agent):**
     ```bash
-    railway variables --service web \
-      --set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' \
-      --set "ENVIRONMENT=production" \
-      --set "SNAPSHOT_DIR=/data/snapshots" \
-      --set "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
-      --set "ADMIN_PASSWORD=$(ssh -i ~/.ssh/isba4775_azure azureuser@52.162.50.66 "grep '^ADMIN_PASSWORD=' ~/career-platform/.env | cut -d= -f2-")"
-    railway variables --service web --kv | cut -d= -f1
+    railway variable set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' --service career-platform --skip-deploys > /dev/null && echo "DATABASE_URL set"
+    railway variable set ENVIRONMENT=production --service career-platform --skip-deploys > /dev/null && echo "ENVIRONMENT set"
+    railway variable set SNAPSHOT_DIR=/data/snapshots --service career-platform --skip-deploys > /dev/null && echo "SNAPSHOT_DIR set"
+    .venv/Scripts/python -c 'import secrets; print(secrets.token_urlsafe(48), end="")' | railway variable set SECRET_KEY --stdin --service career-platform --skip-deploys > /dev/null && echo "SECRET_KEY set"
     ```
-  - **Why:** `${{Postgres.DATABASE_URL}}` is a Railway reference over the private network, and it updates if the database's credentials rotate. `SECRET_KEY` is new, so existing admin sessions end. `ADMIN_PASSWORD` reuses the VM's hash, so the admin password stays the same. The VM must be running for that `ssh` (Owner starts it in the portal if it's deallocated).
-  - **Check:** The names list contains all five. In the dashboard, `ADMIN_PASSWORD` starts with `pbkdf2_sha256$` and isn't empty. If it's empty, the VM's `.env` has no `ADMIN_PASSWORD`. In that case set one with `--set "ADMIN_PASSWORD=$(python -c 'from app.services.auth import hash_password; import getpass; print(hash_password(getpass.getpass()))')"`.
-  - **Undo:** `railway variables --service web --remove <NAME>` (or delete in the dashboard).
+  - **Run (Owner):**
+    ```bash
+    ssh -i ~/.ssh/isba4775_azure azureuser@52.162.50.66 "grep '^ADMIN_PASSWORD=' ~/career-platform/.env | cut -d= -f2-" | tr -d '\r\n' | railway variable set ADMIN_PASSWORD --stdin --service career-platform --skip-deploys > /dev/null && echo "ADMIN_PASSWORD set"
+    ```
+  - **Why:** `${{Postgres.DATABASE_URL}}` is a Railway reference over the private network, and it follows the database if its password changes. `SECRET_KEY` is new, so existing admin sessions end. `ADMIN_PASSWORD` reuses the VM's hash, so the admin password stays the same. `--skip-deploys` stops each change from starting another build of the old Dockerfile on `main`. The VM must be running for the `ssh`.
+  - **Check:** `railway variables --service career-platform --kv | cut -d= -f1 | grep -v '^RAILWAY_'` lists exactly `ADMIN_PASSWORD`, `DATABASE_URL`, `ENVIRONMENT`, `SECRET_KEY`, `SNAPSHOT_DIR`. A check that prints only yes/no confirms `ENVIRONMENT` is exactly `production`, `ADMIN_PASSWORD` starts with `pbkdf2_sha256$` and is not the repository default, and `SECRET_KEY` is at least 32 characters.
+  - **If `ADMIN_PASSWORD` comes out empty:** the VM's `.env` has no such line. The Owner sets a new one instead: `.venv/Scripts/python -c 'from app.services.auth import hash_password; import getpass; print(hash_password(getpass.getpass()), end="")' | railway variable set ADMIN_PASSWORD --stdin --service career-platform --skip-deploys > /dev/null`.
+  - **Undo:** `railway variable delete <NAME> --service career-platform` (or delete in the dashboard).
 
 - [ ] **R3: Add a volume for snapshots**
   - **Where:** Agent, Laptop
-  - **Run:** `railway volume add --service web --mount-path /data`
-  - **Check:** `railway volume list` shows one volume on `web` mounted at `/data`. (Dashboard alternative: web → Settings → Volumes → Add, mount path `/data`.)
+  - **Run:** `railway volume add --service career-platform --mount-path /data`
+  - **Check:** `railway volume list` shows one volume on `career-platform` mounted at `/data`. (Dashboard alternative: career-platform → Settings → Volumes → Add, mount path `/data`.)
 
-- [ ] **R4: First deploy, against the empty database**
-  - **Where:** Agent, Laptop
-  - **Run:** Push `main` (or `railway up --service web` if R1 found no GitHub source). Then:
+- [ ] **R4: First deploy: merge `railway-migration` into `main`**
+  - **Before:** R2 and R3 are done and R2's check passed. In the dashboard (Owner), career-platform → Settings → Deploy has **no custom Start Command**; one would replace the Dockerfile's command and drop the proxy flags.
+  - **Where:** Owner decides when; Agent runs it on the Owner's word.
+  - **Run:**
     ```bash
-    railway logs --service web --deployment -n 80
-    railway domain --service web          # prints (or creates) the *.up.railway.app address
+    git switch main && git merge --ff-only railway-migration && git push origin main
+    railway deployment list --service career-platform | head -3
+    railway logs --service career-platform --build -n 40
+    railway logs --service career-platform --deployment -n 80
+    railway domain --service career-platform          # prints (or creates) the *.up.railway.app address
     ```
-  - **Check:** The deploy logs show the pre-deploy step `Running upgrade  -> 20240917_initial_schema`, then Uvicorn on `0.0.0.0:$PORT`, and the deployment is **Active** (health check passed). `curl -s -o /dev/null -w "%{http_code}" https://<app>.up.railway.app/health` returns `200`. The home page returns `200` with the "Portfolio" fallback heading (there's no profile yet).
-  - **If it crash-loops with `SECRET_KEY must be set…` or `ADMIN_PASSWORD must be set…`:** R2's values are missing or are the defaults. Fix them, and the redeploy happens automatically.
+  - **Check:**
+    - The build succeeds and the deployment becomes **Active** (the `/health` check passed).
+    - The log shows the **pre-deploy** phase running `alembic upgrade head` with `Context impl PostgresqlImpl`. There is **no** `Running upgrade` line, because the database is already at `20240917_initial_schema`. If no pre-deploy phase appears at all, `railway.json` was ignored (the CLI warns that this file format is deprecated); set the pre-deploy command and health check path in the service's settings instead.
+    - Uvicorn reports `0.0.0.0:$PORT`.
+    - `curl -s -o /dev/null -w "%{http_code}" https://<app>.up.railway.app/health` returns `200`, and the home page returns `200` with "Caelon King" (the data is already loaded).
+    - Logging in at `/auth/login` as `admin` with the password `admin-password` is **rejected**. That is the repository's default; accepting it would mean R2's hash didn't take.
+  - **If it stops at startup with `SECRET_KEY must be set…` or `ADMIN_PASSWORD must be set…`:** R2's values are missing or are the defaults. Fix them; Railway redeploys.
+  - **Undo:** `git revert` the merge on `main` and push. caelonk.me is still on the VM at this point, so nothing public changes.
 
-## Data
+## Data (done early, 2026-10-10)
 
-- [ ] **D1: Freeze admin edits on the VM**
+These ran before the first deploy, at the Owner's request. The schema was created by hand with the same migration the pre-deploy step runs.
+
+- [x] **D1: Freeze admin edits on the VM**
   - **Where:** Owner
-  - **Check:** No admin edits are made on caelonk.me from now until Domain 3. The VM keeps serving the public site.
+  - **Check:** No admin edits on caelonk.me from 2026-10-10 until Domain 3. The VM keeps serving the public site. Anything edited there now is not on Railway.
 
-- [ ] **D2: Copy the VM's SQLite file to the laptop and confirm it's intact**
-  - **Where:** Owner, Laptop (reads production data)
-  - **Run:**
+- [x] **D2: Copy the VM's database to the laptop and confirm it's intact**
+  - **What ran:** On 2026-10-08 the VM database was backed up on the VM with SQLite's online backup API, and that backup was copied to `~/Downloads/railway-migration/career_platform-20261008-214842Z.db`.
+
+  | Check | Result |
+  |---|---|
+  | VM live database vs VM backup, every row of all 14 tables | Identical (2026-10-08, again 2026-10-10 after the copy) |
+  | SHA-256, VM backup vs laptop copy | Same (`b8c91c10…718c1a`) |
+  | Laptop copy `integrity_check`, migration | `ok`, `20240917_initial_schema` |
+
+- [x] **D3: Copy into Railway Postgres**
+  - **Where:** Owner, Laptop. `railway run` injects the database address, so it never appears on screen. The Agent's attempt to write to the Railway database was stopped by its permission check, so the Owner ran both commands.
+  - **What ran:**
     ```bash
-    mkdir -p ~/Downloads/railway-migration
-    scp -i ~/.ssh/isba4775_azure azureuser@52.162.50.66:career-platform/career_platform.db ~/Downloads/railway-migration/career_platform-vm-$(date +%F).db
-    ssh -i ~/.ssh/isba4775_azure azureuser@52.162.50.66 'sha256sum ~/career-platform/career_platform.db'
-    sha256sum ~/Downloads/railway-migration/career_platform-vm-*.db
+    railway run --service Postgres '.venv\Scripts\python.exe' -I .superpowers/sdd/2026-10-08-railway-postgres-migration/railway_migrate.py   # alembic upgrade head
+    railway run --service Postgres '.venv\Scripts\python.exe' -m scripts.copy_sqlite_to_postgres --source "C:/Users/caekn/Downloads/railway-migration/career_platform-20261008-214842Z.db" --target-env DATABASE_PUBLIC_URL
     ```
-  - **Check:** The two hashes match. The laptop copy is the input to D3, and it's also the restore point if Postgres ever has to be rebuilt.
+    On Windows `railway run` starts the program through `cmd`, so Python is called by its Windows path.
+  - **Why `DATABASE_PUBLIC_URL`:** `DATABASE_URL` is a private address that only resolves inside Railway. The public address goes through Railway's TCP proxy and works from the laptop.
 
-- [ ] **D3: Copy into Railway Postgres**
-  - **Where:** Owner, Laptop. `railway run` injects the database URL, so the Agent never sees it.
-  - **Run:**
-    ```bash
-    railway run --service Postgres .venv/Scripts/python -m scripts.copy_sqlite_to_postgres \
-      --source ~/Downloads/railway-migration/career_platform-vm-$(date +%F).db --target-env DATABASE_PUBLIC_URL
-    ```
-  - **Why `DATABASE_PUBLIC_URL`:** `DATABASE_URL` points at `postgres.railway.internal`, which only resolves inside Railway. The public URL goes through Railway's TCP proxy and works from the laptop.
-  - **Check:** `Target:` shows a `*.proxy.rlwy.net` host with the password masked. The script prints one line for each of the 13 model tables (`alembic_version` isn't copied, because the pre-deploy migration already wrote it), then `Copy complete; row counts match.` Expected counts (from the 2026-10-08 backup):
+  **Results (2026-10-10):**
 
-    | Table | Rows | Table | Rows |
-    |---|---|---|---|
-    | profiles | 1 | skills | 39 |
-    | projects | 4 | project_skills | 7 |
-    | project_metrics | 6 | experiences | 5 |
-    | media_links | 0 | experience_skills | 9 |
-    | organizations | 3 | certifications | 2 |
-    | roles | 5 | achievements | 0 |
-    | | | project_achievements | 0 |
+  | Check | Expected | Actual | Result |
+  |---|---|---|---|
+  | Railway database before | Empty | Postgres 18.6, no tables, no migration | Pass |
+  | Migration | `None` → `20240917_initial_schema` | `before: None`, `after: 20240917_initial_schema` | Pass |
+  | Copy target | Railway's public proxy host, password masked | As expected | Pass |
+  | Copy output | 13 tables, `Copy complete; row counts match.` | As expected | Pass |
+  | Laptop copy vs Railway, every row of all 13 tables (read through the app's models, hashed per table) | Identical | `ALL TABLES MATCH`, same migration version | Pass |
 
-    If any count differs, compare against the D2 laptop copy with Python's `sqlite3` before continuing. A difference that the laptop copy also shows means the VM's data changed after 2026-10-08; record the new numbers. A difference only in Postgres is a failed copy, so stop and report.
-  - **If it says `Target is not empty`:** something already wrote to Postgres (for example, an admin save on the Railway URL). Stop and report; don't clear the database without the Owner's decision.
+  | Table | VM rows | Railway rows | Table | VM rows | Railway rows |
+  |---|---|---|---|---|---|
+  | profiles | 1 | 1 | skills | 39 | 39 |
+  | projects | 4 | 4 | project_skills | 7 | 7 |
+  | project_metrics | 6 | 6 | experiences | 5 | 5 |
+  | media_links | 0 | 0 | experience_skills | 9 | 9 |
+  | organizations | 3 | 3 | certifications | 2 | 2 |
+  | roles | 5 | 5 | achievements | 0 | 0 |
+  | | | | project_achievements | 0 | 0 |
+
+  Not checked on Railway itself yet: the id sequences. The script resets them and a test proves it against a local Postgres; V3 checks the real database.
+  - **If this ever has to be repeated:** the script refuses a database that already has rows. Don't clear the Railway database without the Owner's decision.
 
 ## Verify on the Railway address (before touching DNS)
 
@@ -987,7 +1035,7 @@ git commit -m "docs: describe the Railway deployment"
 
 - [ ] **V2: Admin login, save, and snapshot on the volume**
   - **Where:** Owner in a browser, then Agent
-  - **Run:** Owner: log in at `$U/auth/login` with the usual admin password, open any project, and click **Save** without changes. Agent: `railway ssh --service web -- ls -la /data/snapshots`
+  - **Run:** Owner: log in at `$U/auth/login` with the usual admin password, open any project, and click **Save** without changes. Agent: `railway ssh --service career-platform -- ls -la /data/snapshots`
   - **Check:** Login lands on `/admin`, and the save redirects without an error. `/data/snapshots` contains `home.html`, `manifest.json` and `projects/`.
 
 - [ ] **V3: New rows get fresh ids** (Review Focus 2, on the real database)
@@ -998,7 +1046,7 @@ git commit -m "docs: describe the Railway deployment"
 ## Domain (Owner, in Railway and Cloudflare)
 
 - [ ] **Domain 1: Add the custom domains in Railway**
-  - **Where:** Owner, dashboard: web → Settings → Networking → **+ Custom Domain**, once for `caelonk.me` and once for `www.caelonk.me`. (CLI: `railway domain caelonk.me --service web`.)
+  - **Where:** Owner, dashboard: career-platform → Settings → Networking → **+ Custom Domain**, once for `caelonk.me` and once for `www.caelonk.me`. (CLI: `railway domain caelonk.me --service career-platform`.)
   - **Check:** Railway shows, for each name, a `CNAME` target (`<something>.up.railway.app`) and a `TXT` verification record. Copy them exactly.
 
 - [ ] **Domain 2: Repoint Cloudflare DNS**
@@ -1023,7 +1071,7 @@ git commit -m "docs: describe the Railway deployment"
 
 - [ ] **S1: Deallocate the VM (kept as the rollback copy)**
   - **Where:** Owner, Azure portal → `vm-career-platform` → **Stop** (this deallocates it). Do it once Domain 3 has passed and the site has run on Railway for at least 24 hours with no errors in `railway logs`.
-  - **Check:** `az vm show -d -g rg-career-platform -n vm-career-platform --query powerState -o tsv` prints `VM deallocated`. The disk and static IP remain, and so does the VM's `career_platform.db`, frozen at D2's state.
+  - **Check:** `az vm show -d -g rg-career-platform -n vm-career-platform --query powerState -o tsv` prints `VM deallocated`. The disk and static IP remain, and so does the VM's `career_platform.db`, frozen at its 2026-10-08 state (unchanged since, as D2 records).
   - **Note:** While deallocated, the VM's certbot can't renew. Its certificate expires in early January 2027, which only matters if the VM is ever brought back as the live site.
 
 ## Record
