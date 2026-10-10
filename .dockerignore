@@ -1,0 +1,11 @@
+.env
+*.db
+.venv
+snapshots
+.git
+.pytest_cache
+__pycache__
+*.egg-info
+docs
+.impeccable
+.superpowers
