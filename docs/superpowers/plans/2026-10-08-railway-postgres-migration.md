@@ -21,7 +21,7 @@
 | D1–D3 | Done early on 2026-10-10, before the first deploy; results under Data |
 | R2 | Done 2026-10-10; results under R2 |
 | R3 | Done 2026-10-10; results under R3 |
-| R4 | Deployed 2026-10-10 and serving `caelonk.me`. Open: Railway ignored `railway.json`, so the pre-deploy command and health check aren't set |
+| R4 | Deployed 2026-10-10 and serving `caelonk.me`. Railway ignored `railway.json`, so the pre-deploy command and health check were set on the service directly and confirmed in the logs |
 | V1 | Passed on `https://caelonk.me` (under R4's results) |
 | Domain | `caelonk.me` was already on Railway (since 2026-10-08). `www.caelonk.me` still points at the VM |
 | V2, V3, Domain for `www`, Shutdown, Record | Not done |
@@ -975,7 +975,7 @@ git commit -m "docs: describe the Railway deployment"
   | Volume | `career-platform-volume`, attached to `career-platform`, mount path `/data`, 0 MB of 500 MB, Ready | Pass |
   | Side effect | Adding the volume started a build of `main` (deployment `0679767a`). It failed at the same `scripts` step as before, as expected with the old Dockerfile | Expected |
 
-- [x] **R4: First deploy: merge `railway-migration` into `main`** (deployed; pre-deploy and health check still to fix)
+- [x] **R4: First deploy: merge `railway-migration` into `main`** (deployed; pre-deploy and health check set on the service afterwards)
   - **Before:** R2 and R3 are done and R2's check passed. In the dashboard (Owner), career-platform → Settings → Deploy has **no custom Start Command**; one would replace the Dockerfile's command and drop the proxy flags.
   - **Where:** Owner decides when; Agent runs it on the Owner's word.
   - **Run:**
@@ -1014,7 +1014,18 @@ git commit -m "docs: describe the Railway deployment"
 
   **V1 run on `https://caelonk.me` right after the deploy:** 4 project pages `200`; stylesheet href `https://caelonk.me/static/css/site.css`; stylesheet and font `200`; bad slug `404 text/html`; resume `200`; `http://caelonk.me` → `301` to `https://`; response headers `server: railway-hikari` and `x-railway-edge`.
 
-  **Still open from R4:** the pre-deploy command and health check. Until they're set, a future migration would not be applied on deploy, and Railway would route traffic to a new deployment without checking `/health`. Fix (Owner, dashboard): career-platform → Settings → Deploy → **Pre-deploy Command** `alembic upgrade head`, **Healthcheck Path** `/health`. Then redeploy and confirm the pre-deploy phase logs `Context impl PostgresqlImpl`.
+  **Pre-deploy command and health check, fixed the same day (2026-10-10):** set on the service through Railway's API (`serviceInstanceUpdate`), because `railway.json` was ignored and `railway environment edit` reported "No changes to apply".
+
+  | Check | Expected | Actual | Result |
+  |---|---|---|---|
+  | Service settings read back | `alembic upgrade head`, `/health`, 120 s | `preDeployCommand: ["alembic upgrade head"]`, `healthcheckPath: /health`, `healthcheckTimeout: 120`, no start command | Pass |
+  | Plain redeploy (`6ae52c5e`) | Uses the new settings | It re-ran the previous deployment with its old settings frozen in | Noted |
+  | Redeploy from source (`1cbf9b54`, commit `36b535e`) | Settings applied | Applied settings show all three | Pass |
+  | Pre-deploy phase in the log | `Context impl PostgresqlImpl`, no `Running upgrade` | `Context impl PostgresqlImpl.`, `Will assume transactional DDL.`, no upgrade line | Pass |
+  | Health check gate | Railway checks `/health` before going live | `Starting Healthcheck`, `[1/1] Healthcheck succeeded!`, and `GET /health 200` from Railway's internal address | Pass |
+  | Live site afterwards | `200` | `/health` `200`; home page shows the name 5 times | Pass |
+
+  These two settings now live in the service's settings, not in the repository. `railway.json` still describes them but Railway doesn't read it for this service.
 
 ## Data (done early, 2026-10-10)
 
