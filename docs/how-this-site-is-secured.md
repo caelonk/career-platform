@@ -1,5 +1,7 @@
 # How this site is secured
 
+> This page describes the Azure VM deployment of caelonk.me. The site is moving to Railway (see `docs/superpowers/plans/2026-10-08-railway-postgres-migration.md`); once the domain has moved, Railway issues and renews the certificate and this page is kept as a record of the VM setup.
+
 How `https://caelonk.me` is protected: its certificate, how the certificate renews, which ports are open, and where encryption starts and ends. Checked on the VM `vm-career-platform` on 2026-10-08 (UTC).
 
 ## 1. The certificate
