@@ -20,7 +20,8 @@
 | R1 | Done; results under R1 |
 | D1–D3 | Done early on 2026-10-10, before the first deploy; results under Data |
 | R2 | Done 2026-10-10; results under R2 |
-| R3, R4, V1–V3, Domain, Shutdown, Record | Not done |
+| R3 | Done 2026-10-10; results under R3 |
+| R4, V1–V3, Domain, Shutdown, Record | Not done |
 
 Changes from the plan as first written:
 
@@ -957,11 +958,19 @@ git commit -m "docs: describe the Railway deployment"
 
   Not yet proven: that the hash is the one your password matches. V2's admin login proves that.
 
-- [ ] **R3: Add a volume for snapshots**
+- [x] **R3: Add a volume for snapshots**
   - **Where:** Agent, Laptop
-  - **Run:** `MSYS_NO_PATHCONV=1 railway volume add --service career-platform --mount-path /data`
+  - **Run:** `MSYS_NO_PATHCONV=1 railway volume --service <career-platform service ID> add --mount-path /data` (the ID comes from `railway status --json`)
   - **Why the prefix:** Git Bash rewrites arguments that start with `/` into Windows paths. Without it, `/data/snapshots` was stored as `C:/Program Files/Git/data/snapshots` (caught by R2's check on 2026-10-10 and corrected).
   - **Check:** `railway volume list` shows one volume on `career-platform` mounted at `/data`. (Dashboard alternative: career-platform → Settings → Volumes → Add, mount path `/data`.)
+
+  **Results (2026-10-10):**
+
+  | Check | Actual | Result |
+  |---|---|---|
+  | CLI syntax (version 5.64.1) | `--service` belongs before `add` and must be the service **ID**. After `add` it's rejected; with the service name the CLI crashes without creating anything | Noted |
+  | Volume | `career-platform-volume`, attached to `career-platform`, mount path `/data`, 0 MB of 500 MB, Ready | Pass |
+  | Side effect | Adding the volume started a build of `main` (deployment `0679767a`). It failed at the same `scripts` step as before, as expected with the old Dockerfile | Expected |
 
 - [ ] **R4: First deploy: merge `railway-migration` into `main`**
   - **Before:** R2 and R3 are done and R2's check passed. In the dashboard (Owner), career-platform → Settings → Deploy has **no custom Start Command**; one would replace the Dockerfile's command and drop the proxy flags.
