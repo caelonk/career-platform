@@ -83,7 +83,7 @@ def write_admin_cookie(response, user: str = "admin") -> None:
         value=token,
         httponly=True,
         samesite="lax",
-        secure=get_settings().environment == "production",
+        secure=get_settings().is_production,
         max_age=60 * 60 * 12,
     )
 

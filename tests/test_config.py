@@ -44,3 +44,27 @@ def test_production_accepts_private_values():
 
 def test_development_allows_defaults():
     assert Settings(_env_file=None, environment="development").secret_key == "development-secret-key"
+
+
+@pytest.mark.parametrize("environment", ["Production", "PRODUCTION", " production "])
+def test_production_guard_ignores_case_and_whitespace(environment):
+    with pytest.raises(ValidationError, match="SECRET_KEY"):
+        Settings(_env_file=None, environment=environment)
+
+
+def test_railway_enforces_guard_when_environment_is_not_set(monkeypatch):
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "production")
+    with pytest.raises(ValidationError, match="SECRET_KEY"):
+        Settings(_env_file=None)
+
+
+def test_railway_counts_as_production_with_private_values(monkeypatch):
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "production")
+    settings = Settings(_env_file=None, environment="development", secret_key="a-private-value", admin_password=PRIVATE_HASH)
+    assert settings.is_production is True
+
+
+def test_local_development_is_not_production(monkeypatch):
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT_NAME", raising=False)
+    assert Settings(_env_file=None, environment="development").is_production is False

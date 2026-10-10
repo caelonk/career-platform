@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     admin_password: str = Field(default=DEFAULT_ADMIN_PASSWORD_HASH)
     snapshot_dir: str = Field(default="./snapshots")
     environment: str = Field(default="development")
+    # Railway sets RAILWAY_ENVIRONMENT_NAME on every deployment; its presence means a public host.
+    railway_environment_name: str = Field(default="")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -36,14 +38,24 @@ class Settings(BaseSettings):
     def normalize_database_url_field(cls, value: str) -> str:
         return normalize_database_url(value)
 
+    @field_validator("environment")
+    @classmethod
+    def normalize_environment(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @property
+    def is_production(self) -> bool:
+        """True when ENVIRONMENT=production or when running on Railway, so a missing variable can't disable the guard."""
+        return self.environment == "production" or bool(self.railway_environment_name.strip())
+
     @model_validator(mode="after")
     def validate_production_settings(self):
-        if self.environment != "production":
+        if not self.is_production:
             return self
         if not self.secret_key.strip() or self.secret_key in DEFAULT_SECRET_KEYS:
-            raise ValueError("SECRET_KEY must be set to a private value when ENVIRONMENT=production.")
+            raise ValueError("SECRET_KEY must be set to a private value when ENVIRONMENT=production or on Railway.")
         if self.admin_password == DEFAULT_ADMIN_PASSWORD_HASH:
-            raise ValueError("ADMIN_PASSWORD must be set to your own password hash when ENVIRONMENT=production.")
+            raise ValueError("ADMIN_PASSWORD must be set to your own password hash when ENVIRONMENT=production or on Railway.")
         return self
 
 
