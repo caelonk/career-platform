@@ -931,7 +931,7 @@ git commit -m "docs: describe the Railway deployment"
     ```bash
     railway variable set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' --service career-platform --skip-deploys > /dev/null && echo "DATABASE_URL set"
     railway variable set ENVIRONMENT=production --service career-platform --skip-deploys > /dev/null && echo "ENVIRONMENT set"
-    railway variable set SNAPSHOT_DIR=/data/snapshots --service career-platform --skip-deploys > /dev/null && echo "SNAPSHOT_DIR set"
+    MSYS_NO_PATHCONV=1 railway variable set SNAPSHOT_DIR=/data/snapshots --service career-platform --skip-deploys > /dev/null && echo "SNAPSHOT_DIR set"
     .venv/Scripts/python -c 'import secrets; print(secrets.token_urlsafe(48), end="")' | railway variable set SECRET_KEY --stdin --service career-platform --skip-deploys > /dev/null && echo "SECRET_KEY set"
     ```
   - **Run (Owner):**
@@ -945,7 +945,8 @@ git commit -m "docs: describe the Railway deployment"
 
 - [ ] **R3: Add a volume for snapshots**
   - **Where:** Agent, Laptop
-  - **Run:** `railway volume add --service career-platform --mount-path /data`
+  - **Run:** `MSYS_NO_PATHCONV=1 railway volume add --service career-platform --mount-path /data`
+  - **Why the prefix:** Git Bash rewrites arguments that start with `/` into Windows paths. Without it, `/data/snapshots` was stored as `C:/Program Files/Git/data/snapshots` (caught by R2's check on 2026-10-10 and corrected).
   - **Check:** `railway volume list` shows one volume on `career-platform` mounted at `/data`. (Dashboard alternative: career-platform → Settings → Volumes → Add, mount path `/data`.)
 
 - [ ] **R4: First deploy: merge `railway-migration` into `main`**
