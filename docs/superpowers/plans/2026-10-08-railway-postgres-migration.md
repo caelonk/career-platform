@@ -23,8 +23,8 @@
 | R3 | Done 2026-10-10; results under R3 |
 | R4 | Deployed 2026-10-10 and serving `caelonk.me`. Railway ignored `railway.json`, so the pre-deploy command and health check were set on the service directly and confirmed in the logs |
 | V1 | Passed on `https://caelonk.me` (under R4's results) |
-| Domain | `caelonk.me` was already on Railway (since 2026-10-08). `www.caelonk.me` still points at the VM |
-| V2, V3, Domain for `www`, Shutdown, Record | Not done |
+| Domain | Done 2026-10-13. `caelonk.me` is on Railway (switched 2026-10-08, live since 2026-10-10). `www.caelonk.me` redirects to it through Cloudflare, because Railway's plan allows one custom domain per service. No DNS record points at the VM |
+| V2, V3, Shutdown, Record | Not done |
 
 Changes from the plan as first written:
 
@@ -1102,7 +1102,34 @@ These ran before the first deploy, at the Owner's request. The schema was create
   - **Run:** Admin → Create project with title `Sequence check`, slug `sequence-check`, status **Draft**, then Save.
   - **Check:** The save succeeds; a duplicate-key error here would mean the sequences weren't reset. Then edit it to **Archived**. Leave it archived; archived projects aren't public.
 
-## Domain (Owner, in Railway and Cloudflare)
+## Domain (done; `www` handled by a Cloudflare redirect)
+
+The steps below this block are the plan as first written. What actually happened:
+
+- **`caelonk.me` (Owner, 2026-10-08):** attached to the Railway service as a custom domain and switched in Cloudflare to `CNAME @ → <target>.up.railway.app`, DNS only, with Railway's `_railway-verify` TXT record. Found on 2026-10-10 during R4; it went live on Railway with that deploy.
+- **`www.caelonk.me` (Agent, 2026-10-13, method chosen by the Owner):** Railway refused a second custom domain ("You have reached the limit for custom domains per service on your plan"). Instead, Cloudflare answers `www` itself and redirects to the bare domain:
+  1. Cloudflare zone ruleset "Redirect www to apex" in the `http_request_dynamic_redirect` phase, one rule (`redirect_www_to_apex`): when `http.host eq "www.caelonk.me"`, redirect `301` to `concat("https://caelonk.me", http.request.uri.path)`, query string preserved.
+  2. The `www` record changed from `A 52.162.50.66` (DNS only) to `A 192.0.2.1` **proxied** (orange cloud). `192.0.2.1` is a reserved placeholder; Cloudflare redirects before anything reaches it.
+  - Done with the Cloudflare CLI (`cf`, logged in as the Owner). The rule was created before the record was switched, so `www` never pointed at nothing.
+
+**Results (2026-10-13):**
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| `caelonk.me` | Railway, `200` | `server: railway-hikari`, `/health` `200`, name on the home page 5 times | Pass |
+| `www` on public resolvers (`1.1.1.1`, `8.8.8.8`, `9.9.9.9`) | Cloudflare addresses, not the VM | `172.67.x` / `104.21.x` on all three | Pass |
+| `https://www.caelonk.me/` | `301` to `https://caelonk.me/` | `301`, `Location: https://caelonk.me/`, `server: cloudflare` | Pass |
+| A deep link with a query string | Path and query kept | `…/projects/legal-document-analyzer?x=1` → `https://caelonk.me/projects/legal-document-analyzer?x=1` | Pass |
+| `http://www.caelonk.me/resume.pdf` | One hop to `https://caelonk.me/resume.pdf` | As expected | Pass |
+| Certificate served for `www` at Cloudflare | Valid for the name | Let's Encrypt, accepted without warnings, expires 2027-01-04 | Pass |
+| Any DNS record still pointing at the VM | None | None | Pass |
+| Email records (5 MX, SPF TXT) | Unchanged | Unchanged | Pass |
+
+**Undo for `www`:** set the `www` record back to `A 52.162.50.66`, DNS only, and delete the "Redirect www to apex" ruleset (the VM must be running).
+
+**Not done here:** V2 and V3 (Owner's admin checks in a browser). `railway ssh` needs an SSH key registered with Railway, so the snapshot folder on the volume couldn't be listed from the laptop.
+
+### Domain steps as first planned
 
 - [ ] **Domain 1: Add the custom domains in Railway**
   - **Where:** Owner, dashboard: career-platform → Settings → Networking → **+ Custom Domain**, once for `caelonk.me` and once for `www.caelonk.me`. (CLI: `railway domain caelonk.me --service career-platform`.)
