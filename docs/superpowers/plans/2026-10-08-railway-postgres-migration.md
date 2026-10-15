@@ -12,7 +12,7 @@
 
 ## Execution status (updated 2026-10-15)
 
-**The site runs entirely on Railway.** `caelonk.me` has been served by Railway since 2026-10-10. No DNS record points at Azure, and the VM has been deallocated since 2026-10-13, kept only as the rollback copy. Mail moved from Namecheap forwarding to Zoho on 2026-10-13 (see Mail). What's left are the Owner's two admin checks in a browser (V2, V3) and the closing record.
+**The migration is complete.** `caelonk.me` has been served by Railway since 2026-10-10. No DNS record points at Azure, and the VM has been deallocated since 2026-10-13, kept only as the rollback copy. Mail moved from Namecheap forwarding to Zoho on 2026-10-13 (see Mail). The admin checks passed on 2026-10-15. `railway-migration` was merged into `main` (fast-forward to `49f0b8f`) the same day.
 
 | Part | State |
 |---|---|
@@ -28,8 +28,8 @@
 | Domain | Done 2026-10-13. `caelonk.me` is on Railway (switched 2026-10-08, live since 2026-10-10). `www.caelonk.me` redirects to it through Cloudflare, because Railway's plan allows one custom domain per service. No DNS record points at the VM |
 | Mail | Done 2026-10-13: Zoho Mail for `caelon@caelonk.me`, with MX, SPF, DKIM and DMARC published and verified. The Namecheap forwarding MX records are removed. Not part of the original plan; results under Mail |
 | Shutdown (S1) | Done 2026-10-13 by the Owner: VM deallocated. Checked 2026-10-15; results under S1 |
-| V2, V3 | Not done. They need the Owner in a browser. The agent can't check them from the laptop, because Railway Postgres has no public endpoint and `railway ssh` needs a registered key |
-| Record | In progress: Mail and S1 results recorded, and the cutover date filled in on 2026-10-15. Record 1 and 2 finish after V2 and V3 |
+| V2, V3 | Passed 2026-10-15 (Owner in a browser, after resetting the admin password); results under V3 |
+| Record | Done 2026-10-15 |
 
 Changes from the plan as first written:
 
@@ -1097,15 +1097,29 @@ These ran before the first deploy, at the Owner's request. The schema was create
     ```
   - **Check:** The name count is ≥ 2. All 4 project pages return `200`. The stylesheet href starts with `https://`. The font returns `200`. The bad slug returns `404 text/html`. The resume returns `200`. The page also looks right in a browser at desktop and phone widths.
 
-- [ ] **V2: Admin login, save, and snapshot on the volume**
+- [x] **V2: Admin login, save, and snapshot on the volume** (passed 2026-10-15 on `https://caelonk.me`; results under V3)
   - **Where:** Owner in a browser, then Agent
   - **Run:** Owner: log in at `$U/auth/login` with the usual admin password, open any project, and click **Save** without changes. Agent: `railway ssh --service career-platform -- ls -la /data/snapshots`
   - **Check:** Login lands on `/admin`, and the save redirects without an error. `/data/snapshots` contains `home.html`, `manifest.json` and `projects/`.
 
-- [ ] **V3: New rows get fresh ids** (Review Focus 2, on the real database)
+- [x] **V3: New rows get fresh ids** (Review Focus 2, on the real database; passed 2026-10-15)
   - **Where:** Owner in a browser
   - **Run:** Admin → Create project with title `Sequence check`, slug `sequence-check`, status **Draft**, then Save.
   - **Check:** The save succeeds; a duplicate-key error here would mean the sequences weren't reset. Then edit it to **Archived**. Leave it archived; archived projects aren't public.
+
+  **Results for V2 and V3 (2026-10-15, on `https://caelonk.me`):**
+
+  The admin password set at R2 wasn't on record, so the Owner reset it first. They hashed a new password on the laptop with `app.services.auth.hash_password` and set `ADMIN_PASSWORD` on the `career-platform` service with `railway.cmd variables --set` (`railway.ps1` is blocked by the default PowerShell execution policy). Railway redeployed as `15a6b173` (`SUCCESS`). The agent confirmed the new value is a `pbkdf2_sha256$200000$…` hash without printing it, and that `/admin` still redirects to the login page when not logged in.
+
+  | Check | Expected | Actual | Result |
+  |---|---|---|---|
+  | V2: log in as `admin` | Lands on `/admin` | Logged in (Owner) | Pass |
+  | V2: save a project without changes | Redirects without an error | No error (Owner) | Pass |
+  | V2: `/data/snapshots` on the volume | `home.html`, `manifest.json`, `projects/` | Not listed. `railway ssh` needs an SSH key registered with Railway | Not checked |
+  | V3: create `Sequence check` (`sequence-check`, Draft) | Saves; no duplicate-key error | Saved, no error (Owner) | Pass |
+  | V3: not public | `404` on its public page | `/projects/sequence-check` returns `404`, and it isn't on the home page (agent) | Pass |
+
+  The `404` holds for both Draft and Archived, so it doesn't show which status the project ended on. It isn't public either way.
 
 ## Domain (done; `www` handled by a Cloudflare redirect)
 
@@ -1211,8 +1225,8 @@ Mail for the domain moved from Namecheap email forwarding to Zoho Mail. It is se
 
 ## Record
 
-- [ ] **Record 1:** Fill in a Results block under each operational step (R1–S1), like the earlier plans do: what ran, the expected value, the actual value, and pass or fail. Include the Railway project and service names, the deploy ID, the per-table copy counts, the V1 status codes, the resolved DNS answers, and the certificate issuer and expiry.
-- [ ] **Record 2: Public-safety check before committing:** grep this file for `railway.internal`, `proxy.rlwy.net`, `postgresql://` URLs with credentials, `pbkdf2_sha256$` hashes other than the documented default, the laptop IP, subscription and tenant IDs, and emails. Expect no secrets. Hostnames shown as `<app>.up.railway.app` are fine.
+- [x] **Record 1:** (done 2026-10-15; results sit under each step, V1 under R4) Fill in a Results block under each operational step (R1–S1), like the earlier plans do: what ran, the expected value, the actual value, and pass or fail. Include the Railway project and service names, the deploy ID, the per-table copy counts, the V1 status codes, the resolved DNS answers, and the certificate issuer and expiry.
+- [x] **Record 2:** (run 2026-10-15; the only matches are test fixtures, local Docker URLs and the documented default hash) **Public-safety check before committing:** grep this file for `railway.internal`, `proxy.rlwy.net`, `postgresql://` URLs with credentials, `pbkdf2_sha256$` hashes other than the documented default, the laptop IP, subscription and tenant IDs, and emails. Expect no secrets. Hostnames shown as `<app>.up.railway.app` are fine.
 - [x] **Record 3:** (cutover date 2026-10-10 filled in on 2026-10-15) Fill in the cutover date in `docs/how-this-site-is-secured.md` (Task 6, Step 3) and commit with the Results: `docs: record Railway migration results`.
 
 ## Rollback (any point after Domain 2)
