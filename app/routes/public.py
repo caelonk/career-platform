@@ -122,6 +122,30 @@ async def project_detail(request: Request, slug: str):
         session.close()
 
 
+PRIVACY_UPDATED = "October 15, 2026"
+GA_MEASUREMENT_ID = "G-6J1F90ST16"
+PRIVACY_CONTACT = "caelon@caelonk.me"
+
+
+@router.get("/privacy", include_in_schema=False)
+async def privacy(request: Request):
+    session = _session_factory()()
+    try:
+        profile = get_public_profile(session)
+    except Exception:
+        profile = None
+    finally:
+        session.close()
+    context = {
+        "request": request,
+        "profile": profile,
+        "updated": PRIVACY_UPDATED,
+        "ga_measurement_id": GA_MEASUREMENT_ID,
+        "privacy_contact": PRIVACY_CONTACT,
+    }
+    return templates.TemplateResponse(request, "public/privacy.html", context)
+
+
 @router.get("/resume.pdf", include_in_schema=False)
 async def resume_pdf():
     resume_file = Path(__file__).resolve().parents[1] / "static" / "resume" / "resume.pdf"

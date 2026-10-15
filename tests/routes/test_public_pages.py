@@ -86,3 +86,28 @@ def test_format_period():
     assert format_period("2026-07", "2026-07") == "Jul 2026"
     assert format_period("2025-12", "2026-02") == "Dec 2025 – Feb 2026"
     assert format_period("2024", "2025") == "2024 – 2025"
+
+
+def test_privacy_page_describes_analytics_and_choices(client):
+    setup_seed_data()
+    response = client.get("/privacy")
+    assert response.status_code == 200
+    assert "G-6J1F90ST16" in response.text
+    assert "_ga_6J1F90ST16" in response.text
+    assert "doesn't load Google Analytics" in response.text
+    assert "doesn't respond to Do Not Track" in response.text
+
+
+def test_footer_links_to_privacy_page(client):
+    setup_seed_data()
+    for path in ("/", "/projects/featured-project", "/privacy"):
+        assert 'href="/privacy"' in client.get(path).text
+
+
+def test_analytics_tag_loads_on_public_pages_only_without_gpc(client):
+    setup_seed_data()
+    for path in ("/", "/projects/featured-project", "/privacy"):
+        text = client.get(path).text
+        assert "googletagmanager.com/gtag/js?id=G-6J1F90ST16" in text
+        assert "if (!navigator.globalPrivacyControl)" in text
+    assert "googletagmanager.com" not in client.get("/auth/login").text

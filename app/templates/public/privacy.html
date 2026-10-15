@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy{% if profile %} · {{ profile.name }}{% endif %}{% endblock %}
+{% block description %}What this site collects when you visit, why, who receives it, and the choices you have.{% endblock %}
+
+{% block content %}
+  <article class="case policy">
+    <header class="case__header">
+      <h1 class="case__title">Privacy</h1>
+      <p class="meta">Last updated {{ updated }}</p>
+      <p class="case__lede">This is a personal portfolio site. It uses Google Analytics to count page views and clicks on links that leave the site. This page explains what that collects, who receives it, and what you can do about it.</p>
+    </header>
+
+    <section class="case__section">
+      <h2 class="case__heading">Short version</h2>
+      <div class="policy__body">
+        <ul>
+          <li>There are no accounts, sign-ups, or forms for visitors on this site.</li>
+          <li>Google Analytics records which pages you view and which outside links you click, along with device and approximate location details. It sets cookies in your browser to do this.</li>
+          <li>Google receives that data. I see it only as reports in Google Analytics.</li>
+          <li>The site doesn't ask for consent before analytics runs. If your browser sends a Global Privacy Control signal, Google Analytics doesn't load at all. Other ways to stop it are listed under "Your choices."</li>
+          <li>I don't sell visitor data or use it for advertising.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="case__section">
+      <h2 class="case__heading">Google Analytics</h2>
+      <div class="policy__body">
+        <p>Every public page loads Google Analytics 4 (measurement ID <code>{{ ga_measurement_id }}</code>), unless your browser sends Global Privacy Control. When a page loads, or when you click a link to another website, your browser sends Google:</p>
+        <ul>
+          <li>the address and title of the page, and the page that linked you here, if any</li>
+          <li>for a link click, the address of the link</li>
+          <li>your browser, operating system, device type, screen size, and language</li>
+          <li>a random ID stored in a cookie, so repeat visits from the same browser can be counted as one visitor</li>
+        </ul>
+        <p>Google uses your IP address to estimate your general location (country, region, city). Google states that Google Analytics 4 doesn't log or store IP addresses. I can't verify that myself.</p>
+        <p><strong>Why:</strong> to see which projects people read and which links they follow, so I can improve the site.</p>
+      </div>
+    </section>
+
+    <section class="case__section">
+      <h2 class="case__heading">Cookies</h2>
+      <div class="policy__body">
+        <p>Google Analytics sets two cookies on this site:</p>
+        <ul>
+          <li><code>_ga</code>, which holds the random visitor ID</li>
+          <li><code>_ga_{{ ga_measurement_id[2:] }}</code>, which tracks your current visit (session)</li>
+        </ul>
+        <p>By default these expire after two years. Each visit renews them.</p>
+        <p>The site sets no other cookies for visitors. One more cookie exists only for me: logging in to the site's admin area sets a cookie that keeps me signed in for 12 hours.</p>
+      </div>
+    </section>
+
+    <section class="case__section">
+      <h2 class="case__heading">Who receives data</h2>
+      <div class="policy__body">
+        <ul>
+          <li><strong>Google</strong> receives the Google Analytics data above. Google's use of it is covered by <a href="https://policies.google.com/technologies/partner-sites">How Google uses information from sites that use its services</a> and the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</li>
+          <li><strong>Railway</strong> hosts the site. Like any web server, its systems receive your IP address, browser details, and the pages you request in order to deliver them, and may record those requests in logs.</li>
+          <li><strong>Cloudflare</strong> runs the site's DNS. If you visit <code>www.caelonk.me</code>, Cloudflare handles that request and redirects you to <code>caelonk.me</code>.</li>
+        </ul>
+        <p>I don't sell or share visitor data with anyone else.</p>
+      </div>
+    </section>
+
+    <section class="case__section">
+      <h2 class="case__heading">Email</h2>
+      <div class="policy__body">
+        <p>Email links on this site open your own email app. Nothing passes through this site. If you email me, I receive your message and email address and use them only to reply.</p>
+      </div>
+    </section>
+
+    <section class="case__section">
+      <h2 class="case__heading">Your choices</h2>
+      <div class="policy__body">
+        <p>The site has no cookie banner or opt-out switch. These options work:</p>
+        <ul>
+          <li>Turn on Global Privacy Control (GPC). When your browser sends it, this site doesn't load Google Analytics, so nothing is sent to Google and no analytics cookies are set. Some browsers, such as Firefox, Brave, and DuckDuckGo, offer GPC as a setting. Others need an extension, and Chrome and Safari don't offer it on their own.</li>
+          <li>Install Google's <a href="https://tools.google.com/dlpage/gaoptout">Google Analytics Opt-out Browser Add-on</a>.</li>
+          <li>Block third-party scripts or trackers with your browser's settings or a content blocker. The site works fully without them.</li>
+          <li>Block or delete cookies for <code>caelonk.me</code> in your browser settings.</li>
+          <li>Browse in a private or incognito window. The cookies are deleted when you close it, but page views are still counted during that visit.</li>
+        </ul>
+        <p>The site doesn't respond to Do Not Track signals. Turning Do Not Track on won't change what Google Analytics collects here. Use GPC instead.</p>
+      </div>
+    </section>
+
+    <section class="case__section">
+      <h2 class="case__heading">Questions</h2>
+      <div class="policy__body">
+        <p>Email <a href="mailto:{{ privacy_contact }}">{{ privacy_contact }}</a> with questions about this page. If this page changes, the date at the top will change too.</p>
+      </div>
+    </section>
+  </article>
+{% endblock %}

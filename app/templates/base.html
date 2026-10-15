@@ -15,6 +15,21 @@
     <link rel="icon" href="{{ url_for('static', path='favicon.svg') }}" type="image/svg+xml" />
     <link rel="preload" href="{{ url_for('static', path='fonts/schibsted-grotesk-latin-wght.woff2') }}" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}" />
+    {% if not (request and (request.url.path.startswith('/admin') or request.url.path.startswith('/auth'))) %}
+      {# Google Analytics 4. Skipped entirely, with no request to Google, when the browser sends Global Privacy Control. Described on /privacy. #}
+      <script>
+        if (!navigator.globalPrivacyControl) {
+          window.dataLayer = window.dataLayer || [];
+          window.gtag = function () { dataLayer.push(arguments); };
+          gtag('js', new Date());
+          gtag('config', 'G-6J1F90ST16');
+          var gaScript = document.createElement('script');
+          gaScript.async = true;
+          gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-6J1F90ST16';
+          document.head.appendChild(gaScript);
+        }
+      </script>
+    {% endif %}
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -34,13 +49,11 @@
       </div>
     </header>
     <main id="main" class="page-shell">{% block content %}{% endblock %}</main>
-    {% if profile %}
-      <footer class="site-footer">
-        <div class="site-footer__inner">
-          <p>{{ profile.name }}{% if profile.location %} · {{ profile.location }}{% endif %}</p>
-          <p><a href="#main">Back to top</a></p>
-        </div>
-      </footer>
-    {% endif %}
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <p>{% if profile %}{{ profile.name }}{% if profile.location %} · {{ profile.location }}{% endif %}{% endif %}</p>
+        <p class="site-footer__links"><a href="/privacy">Privacy</a><a href="#main">Back to top</a></p>
+      </div>
+    </footer>
   </body>
 </html>

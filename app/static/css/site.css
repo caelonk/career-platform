@@ -239,6 +239,11 @@ a:hover {
   color: var(--ink-3);
 }
 
+.site-footer__links {
+  display: flex;
+  gap: 1.25rem;
+}
+
 /* ---------- Page shell ---------- */
 
 .page-shell {
@@ -654,6 +659,27 @@ a:hover {
   max-width: var(--measure);
   white-space: pre-line;
   color: var(--ink-2);
+}
+
+.policy__body {
+  max-width: var(--measure);
+  color: var(--ink-2);
+}
+
+.policy__body > * + * {
+  margin-top: 0.85rem;
+}
+
+.policy__body ul {
+  padding-left: 1.2rem;
+}
+
+.policy__body li + li {
+  margin-top: 0.4rem;
+}
+
+.policy__body strong {
+  color: var(--ink);
 }
 
 .case__footer {

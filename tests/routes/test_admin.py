@@ -29,3 +29,10 @@ def test_admin_can_create_draft_project(client):
         follow_redirects=False,
     )
     assert create_response.status_code == 303
+
+
+def test_admin_dashboard_does_not_load_analytics(client):
+    client.post("/auth/login", data={"username": "admin", "password": "admin-password"}, follow_redirects=False)
+    response = client.get("/admin")
+    assert response.status_code == 200
+    assert "googletagmanager.com" not in response.text
