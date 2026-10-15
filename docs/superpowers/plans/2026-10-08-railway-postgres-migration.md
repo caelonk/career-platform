@@ -10,7 +10,9 @@
 
 **Spec:** The owner's request (2026-10-08): "Inspect my app and plan its move to Railway and PostgreSQL. The Railway project already exists with Postgres and a web service." Decisions made with the owner the same day: cut caelonk.me over to Railway; keep the VM **deallocated** afterwards as the rollback copy (don't delete it); the owner installs the Railway CLI and runs `railway login` before execution starts. Background: `docs/superpowers/specs/2026-09-15-personal-career-platform-design.md`, the VM as operated in `docs/superpowers/plans/2026-10-01-operate-the-vm.md`, and `docs/how-this-site-is-secured.md`.
 
-## Execution status (updated 2026-10-10)
+## Execution status (updated 2026-10-15)
+
+**The site runs entirely on Railway.** `caelonk.me` has been served by Railway since 2026-10-10. No DNS record points at Azure, and the VM has been deallocated since 2026-10-13, kept only as the rollback copy. Mail moved from Namecheap forwarding to Zoho on 2026-10-13 (see Mail). What's left are the Owner's two admin checks in a browser (V2, V3) and the closing record.
 
 | Part | State |
 |---|---|
@@ -24,7 +26,10 @@
 | R4 | Deployed 2026-10-10 and serving `caelonk.me`. Railway ignored `railway.json`, so the pre-deploy command and health check were set on the service directly and confirmed in the logs |
 | V1 | Passed on `https://caelonk.me` (under R4's results) |
 | Domain | Done 2026-10-13. `caelonk.me` is on Railway (switched 2026-10-08, live since 2026-10-10). `www.caelonk.me` redirects to it through Cloudflare, because Railway's plan allows one custom domain per service. No DNS record points at the VM |
-| V2, V3, Shutdown, Record | Not done |
+| Mail | Done 2026-10-13: Zoho Mail for `caelon@caelonk.me`, with MX, SPF, DKIM and DMARC published and verified. The Namecheap forwarding MX records are removed. Not part of the original plan; results under Mail |
+| Shutdown (S1) | Done 2026-10-13 by the Owner: VM deallocated. Checked 2026-10-15; results under S1 |
+| V2, V3 | Not done. They need the Owner in a browser. The agent can't check them from the laptop, because Railway Postgres has no public endpoint and `railway ssh` needs a registered key |
+| Record | In progress: Mail and S1 results recorded, and the cutover date filled in on 2026-10-15. Record 1 and 2 finish after V2 and V3 |
 
 Changes from the plan as first written:
 
@@ -1123,7 +1128,7 @@ The steps below this block are the plan as first written. What actually happened
 | `http://www.caelonk.me/resume.pdf` | One hop to `https://caelonk.me/resume.pdf` | As expected | Pass |
 | Certificate served for `www` at Cloudflare | Valid for the name | Let's Encrypt, accepted without warnings, expires 2027-01-04 | Pass |
 | Any DNS record still pointing at the VM | None | None | Pass |
-| Email records (5 MX, SPF TXT) | Unchanged | Unchanged | Pass |
+| Email records (5 MX, SPF TXT) | Unchanged | Unchanged | Pass (replaced later the same day by the Zoho setup; see Mail) |
 
 **Undo for `www`:** set the `www` record back to `A 52.162.50.66`, DNS only, and delete the "Redirect www to apex" ruleset (the VM must be running).
 
@@ -1153,21 +1158,65 @@ The steps below this block are the plan as first written. What actually happened
     ```
   - **Check:** Neither name resolves to `52.162.50.66`. Railway shows both domains verified with a certificate issued. The response is `HTTP/2 200` with a `server: railway-edge` header or an `x-railway-*` header. The name count is ≥ 2. The issuer is Let's Encrypt and the expiry date is in the future. On the phone, `https://caelonk.me` and `https://www.caelonk.me` show the site with a padlock.
 
+## Mail (Zoho, done 2026-10-13; added after the plan was written)
+
+Mail for the domain moved from Namecheap email forwarding to Zoho Mail. It is separate from hosting: none of these records touch the Railway CNAME, the `www` redirect, or `_railway-verify`. Full evidence: [`dns-before-zoho.md`](../../evidence/dns-before-zoho.md), [`dns-after-zoho.md`](../../evidence/dns-after-zoho.md) and [`ex06.md`](../../evidence/ex06.md) (Exercise 6).
+
+- **Owner (Zoho Admin Console and Cloudflare, 21:23 to 22:01 UTC):** verified the domain with Zoho's TXT record, created the mailbox `caelon@caelonk.me`, and published Zoho's MX, SPF, DKIM and DMARC records.
+- **Agent (Cloudflare CLI, 22:06 UTC, Owner approved):** deleted the five Namecheap `eforward1` to `eforward5.registrar-servers.com` MX records. Their server was rejecting all mail for the domain (`554 5.7.1 Relay access denied`), and while they stayed published they shared priority 10 with `mx.zoho.com`, so some incoming mail bounced.
+
+**Records now published (all DNS only, TTL Auto):**
+
+| Type | Host | Value |
+|---|---|---|
+| TXT | `caelonk.me` | `zoho-verification=zb04468953.zmverify.zoho.com` |
+| MX | `caelonk.me` | `mx.zoho.com` 10, `mx2.zoho.com` 20, `mx3.zoho.com` 50 |
+| TXT (SPF) | `caelonk.me` | `v=spf1 include:zohomail.com ~all` (the old Namecheap SPF record, edited in place) |
+| TXT (DKIM) | `zmail._domainkey.caelonk.me` | `v=DKIM1; k=rsa; p=…` (1024-bit key from Zoho) |
+| TXT (DMARC) | `_dmarc.caelonk.me` | `v=DMARC1; p=none; rua=mailto:caelon@caelonk.me` |
+
+**Results:**
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| Public lookups, 2026-10-15 (`8.8.8.8` and `1.1.1.1`) | The records above, and nothing else for mail | As expected on both resolvers | Pass |
+| Zoho Admin Console | Domain, MX, SPF and DKIM verified | All verified (screenshot in the evidence) | Pass |
+| Incoming: Gmail → `caelon@caelonk.me` | Delivered to Zoho | Delivered (22:09, after the Namecheap records were removed) | Pass |
+| Outgoing and reply: Zoho → Gmail | Delivered, `From: caelon@caelonk.me`, authentication passes | Delivered. Gmail shows `spf=pass`, `dkim=pass` (`s=zmail`), and `dmarc=pass` on the reply | Pass |
+| Website records | Unchanged | Railway CNAME and `_railway-verify` unchanged | Pass |
+
+**Incident during the setup:** between 21:23 and 22:04 UTC the `www` record was switched from proxied to DNS only. That pointed `www` at its placeholder `192.0.2.1`, and `https://www.caelonk.me/` timed out instead of redirecting. The Owner turned the proxy back on at 22:04. After the 5-minute cache expired, the `301` to `https://caelonk.me/` worked again. Lesson: the `www` record must stay **proxied**, because the redirect only exists at Cloudflare's edge.
+
+**Undo:** restore the Namecheap MX and SPF values from `dns-before-zoho.md`. This only matters if Zoho is abandoned, and it changes nothing about hosting.
+
 ## Shutdown
 
-- [ ] **S1: Deallocate the VM (kept as the rollback copy)**
+- [x] **S1: Deallocate the VM (kept as the rollback copy)** (done by the Owner on 2026-10-13; results below)
   - **Where:** Owner, Azure portal → `vm-career-platform` → **Stop** (this deallocates it). Do it once Domain 3 has passed and the site has run on Railway for at least 24 hours with no errors in `railway logs`.
   - **Check:** `az vm show -d -g rg-career-platform -n vm-career-platform --query powerState -o tsv` prints `VM deallocated`. The disk and static IP remain, and so does the VM's `career_platform.db`, frozen at its 2026-10-08 state (unchanged since, as D2 records).
   - **Note:** While deallocated, the VM's certbot can't renew. Its certificate expires in early January 2027, which only matters if the VM is ever brought back as the live site.
+
+  **Results (checked 2026-10-15):**
+
+  | Check | Expected | Actual | Result |
+  |---|---|---|---|
+  | Who deallocated it, and when | The Owner, after at least 24 h on Railway | The Owner's account in the Azure activity log, `deallocate` succeeded at 2026-10-13 22:23 UTC. Railway had been serving `caelonk.me` for about 3 days | Pass |
+  | `az vm show -d … --query powerState` | `VM deallocated` | `VM deallocated` | Pass |
+  | Static public IP kept | `52.162.50.66` | `52.162.50.66` | Pass |
+  | Auto-shutdown schedule | Doesn't matter while deallocated | `Disabled` (18:00 Pacific) | Info |
+  | `railway logs --service career-platform` | No errors | 0 lines matching `error`, `exception`, `traceback` or a 5xx status. Latest deploy `1cbf9b54` still `SUCCESS` | Pass |
+  | Live site | Railway, page renders | `server: railway-hikari`. `GET /` returns `200` with the name 5 times. `HEAD /health` returns `405`, because the route only accepts `GET` | Pass |
+
+  The VM, its disk and the static IP still exist, as planned, and the disk and IP still cost a small amount each month while it's deallocated. Deleting the VM would end the rollback option, so it's a separate decision for the Owner.
 
 ## Record
 
 - [ ] **Record 1:** Fill in a Results block under each operational step (R1–S1), like the earlier plans do: what ran, the expected value, the actual value, and pass or fail. Include the Railway project and service names, the deploy ID, the per-table copy counts, the V1 status codes, the resolved DNS answers, and the certificate issuer and expiry.
 - [ ] **Record 2: Public-safety check before committing:** grep this file for `railway.internal`, `proxy.rlwy.net`, `postgresql://` URLs with credentials, `pbkdf2_sha256$` hashes other than the documented default, the laptop IP, subscription and tenant IDs, and emails. Expect no secrets. Hostnames shown as `<app>.up.railway.app` are fine.
-- [ ] **Record 3:** Fill in the cutover date in `docs/how-this-site-is-secured.md` (Task 6, Step 3) and commit with the Results: `docs: record Railway migration results`.
+- [x] **Record 3:** (cutover date 2026-10-10 filled in on 2026-10-15) Fill in the cutover date in `docs/how-this-site-is-secured.md` (Task 6, Step 3) and commit with the Results: `docs: record Railway migration results`.
 
 ## Rollback (any point after Domain 2)
 
-1. Cloudflare: put back `A @` and `A www` → `52.162.50.66`, DNS only.
+1. Cloudflare: put back `A @` and `A www` → `52.162.50.66`, DNS only. For `@`, delete the Railway CNAME first, because a CNAME can't share a name with an A record. For `www`, replace the proxied placeholder and delete the "Redirect www to apex" ruleset. Leave the mail records (MX, SPF, DKIM, DMARC, `zoho-verification`) alone, since they don't depend on where the site runs.
 2. Azure portal: start `vm-career-platform`. systemd starts the app at boot; check `https://caelonk.me` from a phone.
 3. Data written on Railway after D3 (admin edits) exists only in Railway Postgres. Before rolling back, the Owner decides whether to re-enter it on the VM.

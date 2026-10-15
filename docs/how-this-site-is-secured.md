@@ -1,6 +1,6 @@
 # How this site is secured
 
-> This page describes the Azure VM deployment of caelonk.me. The site is moving to Railway (see `docs/superpowers/plans/2026-10-08-railway-postgres-migration.md`); once the domain has moved, Railway issues and renews the certificate and this page is kept as a record of the VM setup.
+> Describes the Azure VM deployment, which served caelonk.me until 2026-10-10. Since then the site runs on Railway; see the Railway migration plan (`docs/superpowers/plans/2026-10-08-railway-postgres-migration.md`). Railway issues and renews the certificate for `caelonk.me`, Cloudflare serves `www.caelonk.me` as a redirect, and the VM has been deallocated since 2026-10-13. This page is kept as a record of the VM setup.
 
 How `https://caelonk.me` is protected: its certificate, how the certificate renews, which ports are open, and where encryption starts and ends. Checked on the VM `vm-career-platform` on 2026-10-08 (UTC).
 
