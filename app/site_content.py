@@ -9,7 +9,7 @@ EDUCATION = [
     },
 ]
 
-# A LinkedIn entry goes here once the URL is chosen.
 LINKS = [
+    {"label": "LinkedIn", "url": "https://www.linkedin.com/in/c-alex-king"},
     {"label": "GitHub", "url": "https://github.com/caelonk"},
 ]
