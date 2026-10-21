@@ -13,7 +13,13 @@ def test_sqlite_engine_options_keep_single_connection():
 
 
 def test_postgres_engine_options_ping_before_use():
-    assert engine_options("postgresql+psycopg://u:p@h/d") == {"pool_pre_ping": True}
+    assert engine_options("postgresql+psycopg://u:p@h/d")["pool_pre_ping"] is True
+
+
+def test_postgres_connections_give_up_quickly_when_database_is_unreachable():
+    # Without a timeout, a database that stops answering holds the request open
+    # indefinitely, so the page never gets to return 503.
+    assert engine_options("postgresql+psycopg://u:p@h/d")["connect_args"] == {"connect_timeout": 3}
 
 
 def test_psycopg_dialect_is_installed():

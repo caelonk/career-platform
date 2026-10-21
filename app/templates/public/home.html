@@ -31,6 +31,10 @@
   <section id="projects" class="section" aria-labelledby="projects-title">
     <h2 id="projects-title" class="section__title">Projects</h2>
 
+    {% if projects_unavailable %}
+      <p class="empty-note" role="status">Projects temporarily unavailable.</p>
+    {% endif %}
+
     {% if featured_project %}
       {% set project = featured_project %}
       <article class="feature{% if project.metrics %} feature--with-stats{% endif %}">
@@ -70,7 +74,7 @@
           </li>
         {% endfor %}
       </ol>
-    {% elif not featured_project %}
+    {% elif not featured_project and not projects_unavailable %}
       <p class="empty-note">No projects are published right now. The resume has the full list of work.</p>
     {% endif %}
   </section>

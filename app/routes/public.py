@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import get_settings
 from app.db import session as db_session_module
+from app.services import profile_fallback
 from app.services.public_content import get_public_profile, get_public_project, list_public_projects
-from app.services.snapshots import load_snapshot_page
+
+logger = logging.getLogger(__name__)
 
 SessionLocal = None
 
@@ -56,16 +59,8 @@ def format_period(start: str | None, end: str | None) -> str:
 templates.env.filters["period"] = lambda project: format_period(project.start_date, project.end_date)
 
 
-def _snapshot_path_for(page_name: str) -> Path:
-    snapshot_dir = Path(get_settings().snapshot_dir)
-    return snapshot_dir / f"{page_name}.html"
-
-
-def _fallback_snapshot(page_name: str) -> HTMLResponse | None:
-    snapshot_file = _snapshot_path_for(page_name)
-    if snapshot_file.exists():
-        return HTMLResponse(load_snapshot_page(snapshot_file))
-    return None
+def _snapshot_dir() -> Path:
+    return Path(get_settings().snapshot_dir)
 
 
 @router.get("/", include_in_schema=False)
@@ -73,22 +68,39 @@ async def home(request: Request):
     session = _session_factory()()
     try:
         profile = get_public_profile(session)
+        profile_fallback.remember(profile, _snapshot_dir())
         projects = list_public_projects(session)
-        featured = next((project for project in projects if project.featured), None)
+    except SQLAlchemyError:
+        # The database is down. Keep the profile visible, say so about projects, and
+        # return 503 rather than old content, so the failure isn't hidden.
+        logger.exception("Database read failed for the home page")
         context = {
             "request": request,
-            "profile": profile,
-            "featured_project": featured,
-            "projects": [project for project in projects if project is not featured],
+            "profile": profile_fallback.last_known(_snapshot_dir()),
+            "featured_project": None,
+            "projects": [],
+            "projects_unavailable": True,
         }
-        return templates.TemplateResponse(request, "public/home.html", context)
-    except Exception:
-        fallback = _fallback_snapshot("home")
-        if fallback is not None:
-            return fallback
-        raise HTTPException(status_code=404, detail="Resume profile unavailable.")
+        return templates.TemplateResponse(request, "public/home.html", context, status_code=503)
     finally:
         session.close()
+    featured = next((project for project in projects if project.featured), None)
+    context = {
+        "request": request,
+        "profile": profile,
+        "featured_project": featured,
+        "projects": [project for project in projects if project is not featured],
+    }
+    return templates.TemplateResponse(request, "public/home.html", context)
+
+
+def _project_unavailable(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "errors/500.html",
+        {"request": request, "detail": "This project is temporarily unavailable."},
+        status_code=503,
+    )
 
 
 @router.get("/projects/{slug}", include_in_schema=False)
@@ -97,9 +109,6 @@ async def project_detail(request: Request, slug: str):
     try:
         project = get_public_project(session, slug)
         if project is None:
-            fallback = _fallback_snapshot(f"projects/{slug}")
-            if fallback is not None:
-                return fallback
             raise HTTPException(status_code=404, detail="Project not found.")
         published = list_public_projects(session)
         slugs = [summary.slug for summary in published]
@@ -113,11 +122,9 @@ async def project_detail(request: Request, slug: str):
             "next_project": next_project,
         }
         return templates.TemplateResponse(request, "public/project.html", context)
-    except Exception:
-        fallback = _fallback_snapshot(f"projects/{slug}")
-        if fallback is not None:
-            return fallback
-        raise HTTPException(status_code=404, detail="Project not found.")
+    except SQLAlchemyError:
+        logger.exception("Database read failed for project %s", slug)
+        return _project_unavailable(request)
     finally:
         session.close()
 

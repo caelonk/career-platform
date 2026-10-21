@@ -13,7 +13,9 @@ settings = get_settings()
 def engine_options(database_url: str) -> dict:
     if database_url.startswith("sqlite"):
         return {"connect_args": {"check_same_thread": False}, "poolclass": StaticPool}
-    return {"pool_pre_ping": True}
+    # connect_timeout (seconds, per address) stops an unreachable database from holding
+    # requests open, so pages can answer 503 instead of hanging.
+    return {"pool_pre_ping": True, "connect_args": {"connect_timeout": 3}}
 
 
 engine: Engine = create_engine(settings.database_url, **engine_options(settings.database_url))
