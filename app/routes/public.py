@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 
+from app import site_content
 from app.config import get_settings
 from app.db import session as db_session_module
 from app.services import profile_fallback
@@ -57,6 +58,8 @@ def format_period(start: str | None, end: str | None) -> str:
 
 
 templates.env.filters["period"] = lambda project: format_period(project.start_date, project.end_date)
+templates.env.globals["education"] = site_content.EDUCATION
+templates.env.globals["profile_links"] = site_content.LINKS
 
 
 def _snapshot_dir() -> Path:
