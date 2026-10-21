@@ -1,14 +1,14 @@
 # Project 1 gaps
 
 From the requirements audit on 2026-10-20. Each line names the file or check that closes it.
-Updated 2026-10-21 on branch `project-1-gaps`.
+Updated 2026-10-21 on branch `project-1-followup`.
 
 ## Cross-cutting
 
 - [x] Create the submission index → `docs/project-1-submission.md`
 - [x] Rewrite the stale README (Status, Next milestones, sections for requirement 8) → `README.md`
 - [x] Start the VM again (it was deallocated since 2026-10-13) → `docs/evidence/azure-vm-check-2026-10-21.md`
-- [ ] Merge PR #1 (`docs/ex06-results-sheet`) and this branch into `main` → `git log origin/main..project-1-gaps` is empty
+- [x] Merge PR #1 and PR #3 into `main` → merged 2026-10-21 as `714a6f1`
 - [ ] Fill in the final commit SHA at submission → `docs/project-1-submission.md`
 
 ## 1. Profile and project data
@@ -18,8 +18,8 @@ Updated 2026-10-21 on branch `project-1-gaps`.
 - [x] Test that a refresh after recovery shows projects again → same file, and `docs/evidence/database-outage-check.md` (real Postgres)
 - [x] Add an education section → `app/site_content.py`, `app/templates/public/home.html`
 - [x] Add a GitHub link → `app/site_content.py`
-- [ ] Add a LinkedIn link → `app/site_content.py` (needs the URL)
-- [ ] Add a project entry describing this website, labeled in progress → admin "Create project" on `https://caelonk.me` (Owner, needs the admin password)
+- [x] Add a LinkedIn link → `app/site_content.py`
+- [ ] Publish the "this website" project (created in `/admin` as a **draft**, so it isn't public yet) → set its status to Published, then check it appears on `https://caelonk.me`
 - [x] Explain why SQLite was the first database engine → README "Decisions" 3 (draft)
 
 ## 2. Azure deployment
@@ -43,8 +43,8 @@ Updated 2026-10-21 on branch `project-1-gaps`.
 
 ## 5. Reviewed change through Railway
 
-- [ ] Owner reviews the diff of `3c2117b` in the pull request → `docs/evidence/reviewed-change.md` section 2
-- [ ] Merge, then record the Railway deployment ID and the live check → same file, section 3
+- [x] Review and merge → PR #3, `docs/evidence/reviewed-change.md` section 2
+- [x] Railway deployment `dfd152cb` and the live check → same file, section 3
 - [x] Rollback for code and data → README "Rollback"
 
 ## 6. Zoho email
@@ -52,7 +52,7 @@ Updated 2026-10-21 on branch `project-1-gaps`.
 - [x] Before-MX line → `docs/evidence/ex06.md`
 - [x] Header analysis → `docs/evidence/zoho-header-check.md`
 - [x] Link both → README, submission index
-- [ ] Compare the DKIM key and verification code with the Zoho console → `docs/evidence/dns-after-zoho.md` (Owner, in the Zoho console)
+- [x] Zoho console status → Verified (Owner, 2026-10-21), recorded in `docs/evidence/dns-after-zoho.md`
 
 ## 7. GA4
 
@@ -62,6 +62,7 @@ Updated 2026-10-21 on branch `project-1-gaps`.
 
 - [x] Diagrams with email and analytics paths → README
 - [x] Failures table with links, limitations → README
-- [ ] Rewrite the drafted Decisions and Reflection in your own words → README (labeled drafts)
-- [ ] Fill in costs: Railway trial end date and credit, Azure credit expiry, domain cost and renewal → README "Costs, expiry and cleanup"
-- [ ] Confirm which file is your own Ex04 HTTPS explanation → README / submission index point at `docs/how-this-site-is-secured.md`
+- [x] Decisions and Reflection written → README (marked as drafted by Claude Code after the work)
+- [x] Railway trial end date (about 2026-11-05) and credit ($4.11 left) → README "Costs, expiry and cleanup"
+- [x] Azure cost ($3.99; the portal shows no expiry date) and domain expiry (2027-10-05) → same table
+- [x] Ex04 HTTPS explanation confirmed → `docs/how-this-site-is-secured.md`

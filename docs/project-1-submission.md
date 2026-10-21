@@ -67,4 +67,4 @@ Items marked **gap** or **unverified** are known to be missing or unchecked.
 - Reflection: [README, "Reflection"](../README.md#reflection)
 - Costs, expiry and cleanup: [README, "Costs, expiry and cleanup"](../README.md#costs-expiry-and-cleanup)
 - Limitations: [README, "Limitations"](../README.md#limitations)
-- HTTPS explanation for Exercise 4: [`how-this-site-is-secured.md`](how-this-site-is-secured.md) (*confirm this is your Ex04 file*)
+- My HTTPS explanation for Exercise 4: [`how-this-site-is-secured.md`](how-this-site-is-secured.md)

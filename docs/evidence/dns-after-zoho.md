@@ -77,6 +77,13 @@ The "Zoho expects" column is Zoho's standard setup for its US data center
 Not yet shown by this evidence: that the `caelon@caelonk.me` mailbox receives
 mail, and that Zoho's console reports DKIM as verified.
 
+**Follow-up (2026-10-21):** both are now shown elsewhere. Mail is received
+(`ex06.md`, section 1), and Zoho's Admin Console shows the domain, MX, SPF and
+DKIM as verified (screenshot `ex06-zoho-dns.png`, 2026-10-15; domain status
+checked again by the Owner on 2026-10-21: Verified). The published DKIM key and
+verification code were not compared with the console character by character;
+Zoho's verified status means its own lookup of the published records matched.
+
 ## 4. Public resolver check (`8.8.8.8`)
 
 Run with `Resolve-DnsName <name> -Type <type> -Server 8.8.8.8 -DnsOnly`,

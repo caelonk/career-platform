@@ -13,7 +13,7 @@ PostgreSQL. It is the starting point for the career platform built through the s
 
 | Page | What it shows | Where the content comes from |
 |---|---|---|
-| `/` | Name, headline, introduction, projects, education, contact and GitHub links | Profile and published projects from the database; education and links from `app/site_content.py` |
+| `/` | Name, headline, introduction, projects, education, contact, LinkedIn and GitHub links | Profile and published projects from the database; education and links from `app/site_content.py` |
 | `/projects/<slug>` | One case study: context, problem, approach, outcomes, metrics | Database (published projects only) |
 | `/resume.pdf` | Resume | `app/static/resume/resume.pdf` |
 | `/privacy` | What Google Analytics collects and how to opt out | Template |
@@ -226,26 +226,33 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 
 ## Decisions
 
-> **Draft by Claude Code, written 2026-10-20 after the work, from the records cited.
-> Rewrite in your own words; replace with the versions written in class where they exist.**
+> Drafted by Claude Code on 2026-10-20, after the work, from the records linked here.
 
-1. **Railway for the second host.** *Alternatives:* stay on the Azure VM; other PaaS.
-   *Reasons:* the course moves the site to Railway; PaaS removes OS patching, Nginx and
-   certificate work (table above). *Cost of the choice:* less control (Railway ignored
-   `railway.json`), a trial that ends, and one custom domain per service, which is why
-   `www` became a Cloudflare redirect.
-2. **Managed email (Zoho) instead of running a mail server.** *Alternatives:* Postfix
-   and Dovecot on the VM; registrar forwarding. *Reasons:* a VM's IP has no sending
-   reputation, port 25 is often blocked on cloud VMs, and spam filtering, DKIM signing and
-   storage would all be mine. Zoho's free plan covers one address. Namecheap forwarding
-   was already failing (`554 Relay access denied`).
-3. **SQLite first, PostgreSQL on Railway.** *Alternatives:* Postgres on the VM, Azure
-   Database for PostgreSQL. *Reasons:* one small VM (1 GiB RAM), one writer (me through
-   `/admin`), and the course kept the engine the same for the first move. The spec named
-   PostgreSQL as the target, so the code used SQLAlchemy and Alembic from the start.
-4. **503 instead of serving an old snapshot.** The original spec served a snapshot when
-   the database failed. The course asks for the failure to show, so the page now keeps
-   the profile, reports projects unavailable and returns 503.
+1. **Railway for the second host.** I could have stayed on the Azure VM, which I already
+   had working with HTTPS, restarts and service management. I moved to Railway because a
+   PaaS takes over the operating system, patching, Nginx and the certificate, which were
+   the parts that took the most of my time on the VM. The trade-offs showed up quickly:
+   Railway ignored my `railway.json`, so I had to set the pre-deploy command and health
+   check on the service; the trial allows one custom domain, so `www` became a
+   Cloudflare redirect instead of a second Railway domain; and the trial ends, so the
+   site has to move again.
+2. **Managed email with Zoho instead of running my own mail server.** The alternatives
+   were Postfix and Dovecot on the VM, or keeping Namecheap's forwarding. Running mail
+   myself would mean a sending IP with no reputation, outbound port 25 that cloud
+   providers often block, and spam filtering, DKIM signing, storage and backups all on me.
+   Namecheap forwarding wasn't an option either: its server answered
+   `554 Relay access denied` for my address. Zoho's free plan gives me one real mailbox
+   on my domain, and I publish the DNS records it needs in Cloudflare.
+3. **SQLite first, PostgreSQL on Railway.** The VM had 1 GiB of RAM, and the only writer
+   is me through `/admin`, so a single SQLite file was enough, and the course kept the
+   engine the same for the first move. I wrote the app against SQLAlchemy and Alembic
+   from the start, because the spec named PostgreSQL as the target. That made the later
+   switch a driver and URL change plus a data copy, not a rewrite.
+4. **Show the outage instead of hiding it.** My original spec served a saved snapshot
+   when the database failed, which returned 200 and looked healthy. I changed it so the
+   page keeps my profile, says projects are temporarily unavailable, and returns 503, so
+   a monitor or a visitor can tell something is wrong, and old content never passes as
+   current.
 
 ## Failures investigated
 
@@ -269,27 +276,38 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 - The `/data/snapshots` volume contents were never listed (`railway ssh` needs a key).
 - `HEAD /` returns 405, because routes accept only `GET`.
 - DMARC is `p=none`; aggregate reports aren't read yet.
-- No LinkedIn link yet. The experience section of the resume isn't on the site.
+- The experience section of my resume isn't on the site yet.
+- The "this website" project exists in `/admin` as a draft, so it isn't public yet.
 
 ## Reflection
 
-> **Draft by Claude Code, written 2026-10-20 after the work. Rewrite in your own words.**
+> Drafted by Claude Code on 2026-10-20, after the work, from the records linked here.
 
-- *Understand better:* (your words) e.g. that an error can show up one layer away from
-  its cause (a TLS error caused by DNS; a "hung page" caused by a missing connection
-  timeout), and that "it works" needs a check written down with a date.
-- *Would change:* (your words) e.g. write the deliberate data change into the migration
-  plan before copying, and keep the deploy files in the repo matching the server from
-  day one.
+**What I understand better.** An error often shows up one layer away from its cause.
+In Exercise 5, curl reported a certificate error, but the cause was a stale DNS record
+sending me to the wrong server. On the VM, a `502` right after a reboot wasn't a broken
+setup, just Nginx starting a few seconds before Uvicorn. And when I tested the database
+outage, the page didn't return the 503 I'd written; it hung, because the connection had
+no timeout. In each case the fix was where the evidence pointed, not where the symptom
+appeared. I also understand now that PaaS moves work rather than removing it: on Railway
+I still own the code, secrets, data, backups, DNS and the bill.
+
+**What I would change.** I would write the deliberate data change into the migration
+plan before copying, so the comparison could prove it carried current data. I would keep
+the deploy files in the repository identical to the server from the first day; mine
+drifted until I copied the real Nginx file back. I would check where the domain actually
+pointed before planning the cutover: `caelonk.me` was already aimed at Railway for two
+days before Railway had a working deployment. And I would watch the Railway trial clock
+and turn on database backups from the start.
 
 ## Costs, expiry and cleanup
 
 | Service | What is billed or limited | Cost / credit | Ends or renews | Cleanup plan |
 |---|---|---|---|---|
-| Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21) | Student credit expiry: *fill in from the Azure portal* | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
-| Railway | Trial: 30 days or $5 of usage; app service, Postgres service and volume | *Fill in: credit used / remaining from the Railway dashboard* | **Trial end date: fill in** | Migrate to AWS after the midterm, before the trial ends; then delete the project |
+| Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | The portal shows current cost only ($3.99 from use, 2026-10-21), no credit expiry date | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
+| Railway | Trial: 30 days or $5 of usage, whichever comes first; app service, Postgres service and volume | **$4.11 of $5 left** (dashboard, 2026-10-20) | **16 days left on 2026-10-20, so the trial ends about 2026-11-05** | Migrate to AWS after the midterm and before 2026-11-05; then delete the Railway project |
 | Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
-| Namecheap | Domain `caelonk.me`, registered 2026-10-05 | *Fill in* | *Renewal date: fill in* | Renew or let lapse |
+| Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | **Expires 2027-10-05** (Namecheap dashboard) | Renew before 2027-10-05, or let it lapse if the site moves to another name |
 | Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |
 | Google Analytics 4 | Property for `caelonk.me` | Free | No expiry | Keep |
 

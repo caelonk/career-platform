@@ -133,3 +133,8 @@ def test_education_and_links_stay_visible_when_database_is_down(client, monkeypa
     assert response.status_code == 503
     assert "Loyola Marymount University" in response.text
     assert 'href="https://github.com/caelonk"' in response.text
+
+
+def test_home_links_to_linkedin_profile(client):
+    response = client.get("/")
+    assert 'href="https://www.linkedin.com/in/c-alex-king"' in response.text
