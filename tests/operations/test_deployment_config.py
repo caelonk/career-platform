@@ -4,18 +4,22 @@ import json
 from pathlib import Path
 
 
-def test_nginx_config_serves_snapshot_and_proxies_dynamic_requests():
+def test_nginx_config_is_the_vm_front_door_on_port_80():
+    # The site file as installed on the Azure VM on 2026-10-05.
     config = Path("deploy/nginx/career-platform.conf").read_text()
-    assert "proxy_pass http://127.0.0.1:8000" in config
-    assert "snapshot" in config
-    assert "try_files" in config
+    assert "listen 80 default_server;" in config
+    assert "proxy_pass http://127.0.0.1:8000;" in config
+    assert "proxy_set_header X-Forwarded-Proto $scheme;" in config
 
 
-def test_systemd_service_runs_uvicorn_without_root():
+def test_systemd_service_matches_the_vm_unit():
+    # The unit as installed on the Azure VM on 2026-10-05.
     unit = Path("deploy/systemd/career-platform.service").read_text()
-    assert "User=career-platform" in unit
-    assert "app.main:create_app" in unit
+    assert "User=azureuser" in unit
+    assert "WorkingDirectory=/home/azureuser/career-platform" in unit
+    assert "--host 127.0.0.1 --port 8000 --workers 2" in unit
     assert "Restart=on-failure" in unit
+    assert "WantedBy=multi-user.target" in unit
 
 
 def test_dockerfile_serves_on_railway_port_behind_proxy():
