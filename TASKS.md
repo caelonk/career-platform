@@ -9,7 +9,7 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Rewrite the stale README (Status, Next milestones, sections for requirement 8) → `README.md`
 - [x] Start the VM again (it was deallocated since 2026-10-13) → `docs/evidence/azure-vm-check-2026-10-21.md`
 - [x] Merge PR #1 and PR #3 into `main` → merged 2026-10-21 as `714a6f1`
-- [ ] Fill in the final commit SHA at submission → `docs/project-1-submission.md`
+- [x] Final commit `8d76e16` (Railway deployment `4acbe4be`) → `docs/project-1-submission.md`
 
 ## 1. Profile and project data
 
@@ -19,7 +19,8 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Add an education section → `app/site_content.py`, `app/templates/public/home.html`
 - [x] Add a GitHub link → `app/site_content.py`
 - [x] Add a LinkedIn link → `app/site_content.py`
-- [ ] Publish the "this website" project (created in `/admin` as a **draft**, so it isn't public yet) → set its status to Published, then check it appears on `https://caelonk.me`
+- [x] Publish the "this website" project → public on `https://caelonk.me` (2026-10-21)
+- [ ] Tidy that project in `/admin`: untick Featured, change the slug from `in progress` to e.g. `caelonk-me`, replace the placeholder title and summary
 - [x] Explain why SQLite was the first database engine → README "Decisions" 3 (draft)
 
 ## 2. Azure deployment

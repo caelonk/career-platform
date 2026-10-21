@@ -4,7 +4,7 @@
 |---|---|
 | Repository | <https://github.com/caelonk/career-platform> |
 | Live site | <https://caelonk.me> |
-| Final commit | *Fill in the SHA of `main` at submission (`git rev-parse origin/main`)* |
+| Final commit | [`8d76e16`](https://github.com/caelonk/career-platform/commit/8d76e166e5fe980fe0aada7dea953d6ee5c24d82), deployed on Railway as `4acbe4be` on 2026-10-21. One docs-only commit follows it, adding this line and updating `TASKS.md` |
 | Explanation of the system | [README](../README.md) |
 
 Items marked **gap** or **unverified** are known to be missing or unchecked.
