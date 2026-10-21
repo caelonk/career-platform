@@ -304,10 +304,10 @@ and turn on database backups from the start.
 
 | Service | What is billed or limited | Cost / credit | Ends or renews | Cleanup plan |
 |---|---|---|---|---|
-| Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | Student credit expiry: not recorded (Azure portal → Subscriptions) | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
+| Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | The portal shows current cost only ($3.99 from use, 2026-10-21), no credit expiry date | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
 | Railway | Trial: 30 days or $5 of usage, whichever comes first; app service, Postgres service and volume | **$4.11 of $5 left** (dashboard, 2026-10-20) | **16 days left on 2026-10-20, so the trial ends about 2026-11-05** | Migrate to AWS after the midterm and before 2026-11-05; then delete the Railway project |
 | Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
-| Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | Renewal date: not recorded (Namecheap dashboard) | Renew before it lapses |
+| Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | **Expires 2027-10-05** (Namecheap dashboard) | Renew before 2027-10-05, or let it lapse if the site moves to another name |
 | Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |
 | Google Analytics 4 | Property for `caelonk.me` | Free | No expiry | Keep |
 

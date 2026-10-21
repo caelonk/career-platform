@@ -52,7 +52,7 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Before-MX line → `docs/evidence/ex06.md`
 - [x] Header analysis → `docs/evidence/zoho-header-check.md`
 - [x] Link both → README, submission index
-- [ ] Compare the DKIM key and verification code with the Zoho console → `docs/evidence/dns-after-zoho.md` (Owner, in the Zoho console)
+- [x] Zoho console status → Verified (Owner, 2026-10-21), recorded in `docs/evidence/dns-after-zoho.md`
 
 ## 7. GA4
 
@@ -64,5 +64,5 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Failures table with links, limitations → README
 - [x] Decisions and Reflection written → README (marked as drafted by Claude Code after the work)
 - [x] Railway trial end date (about 2026-11-05) and credit ($4.11 left) → README "Costs, expiry and cleanup"
-- [ ] Azure credit expiry and domain cost and renewal date → same table (Azure portal, Namecheap dashboard)
+- [x] Azure cost ($3.99; the portal shows no expiry date) and domain expiry (2027-10-05) → same table
 - [x] Ex04 HTTPS explanation confirmed → `docs/how-this-site-is-secured.md`
