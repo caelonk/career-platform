@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 
 
-def test_nginx_config_is_the_vm_front_door_on_port_80():
-    # The site file as installed on the Azure VM on 2026-10-05.
+def test_nginx_config_is_the_vm_front_door():
+    # The site file as copied from the Azure VM on 2026-10-21.
     config = Path("deploy/nginx/career-platform.conf").read_text()
     assert "listen 80 default_server;" in config
+    assert "listen 443 ssl;" in config
+    assert "return 301 https://$host$request_uri;" in config
     assert "proxy_pass http://127.0.0.1:8000;" in config
     assert "proxy_set_header X-Forwarded-Proto $scheme;" in config
 

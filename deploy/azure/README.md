@@ -1,7 +1,10 @@
 # Azure VM deployment (as built)
 
 The Azure VM served `caelonk.me` from 2026-10-05 until the move to Railway on 2026-10-10.
-It has been deallocated since 2026-10-13 and is kept as the rollback copy. Earlier
+It was deallocated from 2026-10-13 and started again on 2026-10-21, because Project 1
+asks for it to keep running until the instructor says otherwise. No DNS record points at
+it; it is the rollback copy. Latest check:
+[`docs/evidence/azure-vm-check-2026-10-21.md`](../../docs/evidence/azure-vm-check-2026-10-21.md). Earlier
 versions of this runbook described Azure Database for PostgreSQL and a dedicated
 `career-platform` service user; neither was built.
 
@@ -11,7 +14,7 @@ versions of this runbook described Azure Database for PostgreSQL and a dedicated
 | Addresses | Public `52.162.50.66` (static, held by Azure), private `10.0.0.4` |
 | SSH | Key only, user `azureuser`, from the operator laptop's `/32` (NSG `Allow-SSH-Laptop`, priority 300) |
 | Web | NSG `Allow-HTTP-80` (320) and `Allow-HTTPS-443` (330) from anyone; everything else hits `DenyAllInBound` |
-| Nginx | [`deploy/nginx/career-platform.conf`](../nginx/career-platform.conf), plus Certbot's HTTPS changes |
+| Nginx | [`deploy/nginx/career-platform.conf`](../nginx/career-platform.conf), copied from the VM (includes Certbot's HTTPS changes) |
 | App | [`deploy/systemd/career-platform.service`](../systemd/career-platform.service): Uvicorn, 2 workers, `127.0.0.1:8000`, as `azureuser` |
 | Database | SQLite at `/home/azureuser/career-platform/career_platform.db`, read only by the app on the same VM |
 | Certificate | Let's Encrypt for `caelonk.me` and `www.caelonk.me`, renewed by `certbot.timer` |
