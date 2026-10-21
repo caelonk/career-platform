@@ -1,80 +1,308 @@
 # Career Platform
 
-A database-driven personal resume and career platform for business transformation, digital transformation, IT strategy, and consulting roles.
+My personal career site at **<https://caelonk.me>**: profile, education, contact details,
+a downloadable resume, and project case studies read from a database on every request.
+It began in Codespaces, ran on an Azure Linux VM, and now runs on Railway with
+PostgreSQL. It is the starting point for the career platform built through the semester.
 
-## Status
+- Project 1 submission index: [`docs/project-1-submission.md`](docs/project-1-submission.md)
+- Original spec: [`docs/superpowers/specs/2026-09-15-personal-career-platform-design.md`](docs/superpowers/specs/2026-09-15-personal-career-platform-design.md)
+- Plans: [`docs/superpowers/plans/`](docs/superpowers/plans/)
 
-This project is in the early implementation phase. The current codebase includes:
+## What it does
 
-- FastAPI application foundation and health endpoint
-- Environment-based configuration for local SQLite and production PostgreSQL targets
-- Jinja-based template foundation and static CSS styling
-- SQLAlchemy 2.x schema and Alembic migration for the public content model
-- Database tests covering portfolio relationships and project metadata
+| Page | What it shows | Where the content comes from |
+|---|---|---|
+| `/` | Name, headline, introduction, projects, education, contact and GitHub links | Profile and published projects from the database; education and links from `app/site_content.py` |
+| `/projects/<slug>` | One case study: context, problem, approach, outcomes, metrics | Database (published projects only) |
+| `/resume.pdf` | Resume | `app/static/resume/resume.pdf` |
+| `/privacy` | What Google Analytics collects and how to opt out | Template |
+| `/admin` | Log in, create and edit projects | Database; password hash in `ADMIN_PASSWORD` |
+| `/health` | `{"status":"ok"}` for Railway's health check | Code only (doesn't touch the database) |
 
-## Local development
+**When the database is down,** the home page keeps the last profile it read, says
+"Projects temporarily unavailable." and returns **HTTP 503**. Project pages return 503.
+The next request after the database recovers reads it again, with no restart. A healthy
+request returns 200. Evidence: [`docs/evidence/database-outage-check.md`](docs/evidence/database-outage-check.md).
+An empty projects table shows "No projects are published right now."
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
-   ```bash
-   python -m pip install -e '.[dev]'
-   ```
-3. Run the health check:
-   ```bash
-   pytest -q
-   ```
-4. Start the app locally:
-   ```bash
-   uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
-   ```
+## How it runs now (Railway)
 
-### Postgres tests
+```mermaid
+flowchart LR
+  B["Visitor's browser"]
+  subgraph CF["Cloudflare (DNS host for caelonk.me)"]
+    DNS[("Authoritative DNS<br/>@ CNAME → l29it1kr.up.railway.app (DNS only)<br/>www A placeholder (proxied)<br/>MX, SPF, DKIM, DMARC → Zoho")]
+    EDGE["Cloudflare edge<br/>www → 301 https://caelonk.me"]
+  end
+  subgraph RW["Railway: project motivated-solace, environment production"]
+    REDGE["Railway edge<br/>TLS ends here<br/>Let's Encrypt cert for caelonk.me"]
+    APP["career-platform service<br/>Docker image, Uvicorn, 2 workers<br/>on $PORT (8080)"]
+    PG[("Postgres service<br/>PostgreSQL 18<br/>private network, TCP 5432")]
+    VOL[("Volume /data<br/>snapshots, profile.json")]
+  end
+  GH["GitHub<br/>caelonk/career-platform, main"]
+  GA["Google Analytics 4<br/>G-6J1F90ST16"]
+  GTM["www.googletagmanager.com<br/>gtag.js"]
 
-Some tests only run against a real Postgres database. Start the local one, then point the tests at it:
+  B -- "1. DNS lookup, UDP 53" --> DNS
+  B -- "2. HTTPS, TCP 443 (HTTP 80 → 301)" --> REDGE
+  B -. "www.caelonk.me, TCP 80/443" .-> EDGE
+  REDGE -- "3. plain HTTP + X-Forwarded-Proto" --> APP
+  APP -- "4. SQL, psycopg" --> PG
+  APP --- VOL
+  GH -- "push to main → build + alembic upgrade head → /health gate" --> APP
+  B -- "5. HTTPS 443, load gtag.js" --> GTM
+  B -- "6. HTTPS 443, page_view and click events" --> GA
+```
+
+**Email** (Zoho Mail, `caelon@caelonk.me`) doesn't touch Railway:
+
+```mermaid
+flowchart LR
+  EXT["Outside sender<br/>(e.g. Gmail)"]
+  DNS[("Cloudflare DNS<br/>MX mx/mx2/mx3.zoho.com<br/>SPF include:zohomail.com<br/>DKIM zmail._domainkey<br/>DMARC p=none")]
+  ZMX["Zoho inbound servers<br/>SMTP, TCP 25"]
+  ZBOX[("Zoho mailbox<br/>caelon@caelonk.me")]
+  ME["Me, in Zoho webmail<br/>HTTPS 443"]
+  ZOUT["Zoho outbound servers<br/>sign with DKIM"]
+  RCPT["Recipient's mail server<br/>checks SPF, DKIM, DMARC in DNS"]
+
+  EXT -- "1. look up MX" --> DNS
+  EXT -- "2. SMTP 25" --> ZMX --> ZBOX
+  ME <--> ZBOX
+  ME -- "3. send or reply" --> ZOUT
+  ZOUT -- "4. SMTP 25" --> RCPT
+  RCPT -. "5. TXT lookups" .-> DNS
+```
+
+**Analytics** goes from the visitor's browser straight to Google; the app only sends the
+HTML containing the tag. Details and the Realtime check: [`docs/evidence/ex06.md`](docs/evidence/ex06.md) section 4.
+
+A step-by-step request trace (DNS, TCP, TLS, HTTP) is in
+[`docs/midterm-request-path.md`](docs/midterm-request-path.md).
+
+## How it ran before (Azure VM)
+
+```mermaid
+flowchart LR
+  B["Visitor's browser"]
+  L["My laptop"]
+  DNS[("Cloudflare DNS<br/>A @ and www → 52.162.50.66, DNS only")]
+  LE["Let's Encrypt"]
+  subgraph AZ["Azure, northcentralus, rg-career-platform"]
+    PIP["Public IP 52.162.50.66<br/>(held by Azure, 1:1 NAT)"]
+    NSG{{"NSG vm-career-platformNSG<br/>22 from my laptop /32 only<br/>80, 443 from anyone<br/>everything else denied"}}
+    subgraph VM["Ubuntu 24.04 VM, private IP 10.0.0.4"]
+      NGX["Nginx :80 → 301<br/>Nginx :443, TLS ends here"]
+      UV["Uvicorn 127.0.0.1:8000<br/>2 workers, systemd, as azureuser"]
+      DB[("SQLite file<br/>~/career-platform/career_platform.db")]
+      CB["certbot.timer"]
+    end
+  end
+  B -- "DNS, UDP 53" --> DNS
+  B -- "TCP 80/443" --> PIP --> NSG --> NGX
+  NGX -- "HTTP over loopback" --> UV --> DB
+  L -- "SSH, TCP 22, key only" --> PIP
+  CB -- "renew, HTTP-01 on port 80" --> LE
+```
+
+While the VM served the site there was **no GA4** (added 2026-10-15) and **no Zoho**
+(set up 2026-10-13). The domain's MX records pointed at Namecheap forwarding, which
+rejected incoming mail, so the email path above didn't exist yet. Details:
+[`deploy/azure/README.md`](deploy/azure/README.md),
+[`docs/how-this-site-is-secured.md`](docs/how-this-site-is-secured.md).
+The VM is running again since 2026-10-21 as the rollback copy; no DNS record points at it.
+
+## Set up and run locally
+
+```bash
+python -m venv .venv && . .venv/Scripts/activate   # or bin/activate
+python -m pip install -e '.[dev]'
+cp .env.example .env                               # local SQLite by default
+alembic upgrade head
+python -m pytest -q
+uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --reload
+```
+
+The local database starts empty; add content through `/admin`. `ADMIN_PASSWORD` holds a
+pbkdf2 hash (make one with `app.services.auth.hash_password`). It is optional in
+development, and production refuses the repository's default hash and default
+`SECRET_KEY`.
+
+Postgres-only tests need a local database and wipe its `public` schema, so they refuse
+any address that isn't on this machine:
 
 ```bash
 docker compose --profile postgres up -d postgres
-TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/career_platform pytest -q
+TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/career_platform python -m pytest -q
 ```
 
-These tests wipe that database's `public` schema on every run, so they refuse any address that isn't on this machine. Without `TEST_POSTGRES_URL` they are skipped.
+## Production settings (Railway)
 
-## Configuration
+| Setting | Where it lives |
+|---|---|
+| `DATABASE_URL` | Railway variable, a reference to `${{Postgres.DATABASE_URL}}` |
+| `SECRET_KEY`, `ADMIN_PASSWORD` | Railway variables, never in Git |
+| `ENVIRONMENT=production`, `SNAPSHOT_DIR=/data/snapshots` | Railway variables |
+| Pre-deploy `alembic upgrade head`, health check `/health` | Railway service settings (Railway ignores `railway.json` for this service) |
+| Custom domain `caelonk.me` | Railway service networking, plus Cloudflare DNS |
 
-The project uses `.env.example` as a template. Set the following values in a local `.env` file when needed:
+## Updating the site
 
-```env
-ENVIRONMENT=development
-DATABASE_URL=sqlite:///./career_platform.db
-SECRET_KEY=change-me
-SNAPSHOT_DIR=./snapshots
-```
+1. Work on a branch. Run `python -m pytest -q` and check the change locally.
+2. Open a pull request and review the diff.
+3. Merge to `main`. Railway builds the `Dockerfile`, runs `alembic upgrade head`, waits
+   for `/health` to return 200, then switches traffic. A failed build or health check
+   leaves the previous deployment serving.
+4. Check `railway deployment list --service career-platform` for the new deployment and
+   its commit SHA, then check the change at `https://caelonk.me`.
 
-`ADMIN_PASSWORD` holds the admin password as a pbkdf2 hash (generate one with `app.services.auth.hash_password`). It is optional in development and required in production.
+Example with evidence: [`docs/evidence/reviewed-change.md`](docs/evidence/reviewed-change.md).
 
-Production is set up on Railway: the `career-platform` service builds `Dockerfile` (see `railway.json`), runs `alembic upgrade head` before each deploy, and reads `DATABASE_URL` from the Railway Postgres service. `ENVIRONMENT=production` refuses the repository's default `SECRET_KEY` and admin password hash. Snapshots live on a Railway volume at `/data/snapshots`. The Azure VM that served the site before (Nginx + systemd/Uvicorn + SQLite) is kept, deallocated, as a rollback copy once the domain has moved. Local development and tests default to SQLite.
+## Rollback
 
-## Project structure
+### Bad code
+
+- **Fastest:** Railway dashboard → `career-platform` → Deployments → the last good
+  deployment → **Redeploy**. That reruns the old image with the settings it had then.
+- **Lasting:** `git revert <bad sha>` on a branch, review, merge to `main`. Railway
+  builds the reverted code. Prefer this, so `main` matches what is live.
+- Check: `railway deployment list` shows the deployment `SUCCESS`, and the problem is gone
+  at `https://caelonk.me`.
+
+### Bad data or a bad migration
+
+- **Before** a change that edits or deletes data, or a new migration, take a dump. The
+  laptop has no `pg_dump`, so run it from the Postgres image with the public URL injected
+  by Railway:
+  `railway run --service Postgres -- docker run --rm -e DATABASE_PUBLIC_URL postgres:18 sh -c 'pg_dump --no-owner "$DATABASE_PUBLIC_URL"' > backup-YYYYMMDD.sql`
+  (keep the file outside the repository; it contains personal data). *Not yet rehearsed.*
+- **A wrong admin edit:** fix it again in `/admin`; every change is a normal row update.
+- **A bad migration:** write a new migration that reverses it, or restore the dump into
+  an empty database. The current single migration has no earlier state to go back to.
+
+### Back to the Azure VM
+
+The full procedure is in the Railway plan's
+[Rollback section](docs/superpowers/plans/2026-10-08-railway-postgres-migration.md#rollback-any-point-after-domain-2).
+In short: point `@` and `www` back at `52.162.50.66` (DNS only), remove the `www`
+redirect rule, and confirm the VM serves. The VM's SQLite file is frozen at 2026-10-08,
+so **data written on Railway since 2026-10-10 must be moved first**: dump it as above,
+then re-enter or copy the changed rows into the VM's database before switching DNS. The
+VM's certificate expires 2027-01-04 and will only renew once DNS points back at it.
+
+## Migration from Azure to Railway
+
+- **Plan, written before the change:** [`docs/superpowers/plans/2026-10-08-railway-postgres-migration.md`](docs/superpowers/plans/2026-10-08-railway-postgres-migration.md)
+  (committed 2026-10-08 21:40 UTC as `ae8b4f5`; the domain was first attached to Railway at 22:16 UTC).
+- **Compatibility changes:** Postgres driver and URL handling (`dba4993`), migrations from
+  code and Postgres tests (`aa519d9`), copy script with id-sequence reset (`3dccd86`),
+  Railway container (`df4ef2a`), production secret checks (`d41968c`, `776b3fa`).
+- **Data:** the VM's SQLite file was backed up, copied to the laptop (same SHA-256), and
+  copied into Railway Postgres; every row of all 13 tables matched (plan, D2–D3). On
+  2026-10-21 the five public pages from the VM and from Railway had identical text
+  ([`docs/evidence/azure-vm-check-2026-10-21.md`](docs/evidence/azure-vm-check-2026-10-21.md)).
+  **Gap:** no deliberate change was made to the data before the copy, as the course asks.
+- **Cutover and checks:** plan sections R4, V1–V3, Domain and S1; today's re-check in
+  [`docs/evidence/live-checks-2026-10-21.md`](docs/evidence/live-checks-2026-10-21.md).
+- What Git moved and what it didn't: the plan's "Added afterward" section.
+
+### Who manages what
+
+| Part | Azure VM (IaaS) | Railway (PaaS) | Still mine on Railway |
+|---|---|---|---|
+| Operating system, patches | Me (Ubuntu updates) | Railway | Nothing |
+| Runtime (Python, packages) | Me (venv on the VM) | Built by Railway from my `Dockerfile` and `uv.lock` | Choosing versions and updating the lock file |
+| Process management | Me (systemd unit, workers) | Railway (restart policy, health check) | The start command and worker count in the `Dockerfile` |
+| Web entry point | Me (Nginx, NSG rules) | Railway edge | Nothing to configure, but no control over it either |
+| TLS certificate | Me (Certbot, timer) | Railway | Keeping the apex DNS record pointed at Railway so renewal works |
+| Application code | Me | Me | All of it, plus reviewing what reaches `main` |
+| Configuration and secrets | Me (`.env` on the VM) | Me (Railway variables) | Strong values, rotation, never committing them |
+| Database software | Me (SQLite file) | Railway (Postgres service) | Major-version upgrades are still my decision |
+| Data and backups | Me | Me | Dumps before risky changes; whether Railway backups are on hasn't been checked |
+| DNS | Me (Cloudflare) | Me (Cloudflare) | Unchanged |
+| Cost | Me (Azure budget) | Me (Railway trial) | Watching the trial end date and usage |
+
+## Decisions
+
+> **Draft by Claude Code, written 2026-10-20 after the work, from the records cited.
+> Rewrite in your own words; replace with the versions written in class where they exist.**
+
+1. **Railway for the second host.** *Alternatives:* stay on the Azure VM; other PaaS.
+   *Reasons:* the course moves the site to Railway; PaaS removes OS patching, Nginx and
+   certificate work (table above). *Cost of the choice:* less control (Railway ignored
+   `railway.json`), a trial that ends, and one custom domain per service, which is why
+   `www` became a Cloudflare redirect.
+2. **Managed email (Zoho) instead of running a mail server.** *Alternatives:* Postfix
+   and Dovecot on the VM; registrar forwarding. *Reasons:* a VM's IP has no sending
+   reputation, port 25 is often blocked on cloud VMs, and spam filtering, DKIM signing and
+   storage would all be mine. Zoho's free plan covers one address. Namecheap forwarding
+   was already failing (`554 Relay access denied`).
+3. **SQLite first, PostgreSQL on Railway.** *Alternatives:* Postgres on the VM, Azure
+   Database for PostgreSQL. *Reasons:* one small VM (1 GiB RAM), one writer (me through
+   `/admin`), and the course kept the engine the same for the first move. The spec named
+   PostgreSQL as the target, so the code used SQLAlchemy and Alembic from the start.
+4. **503 instead of serving an old snapshot.** The original spec served a snapshot when
+   the database failed. The course asks for the failure to show, so the page now keeps
+   the profile, reports projects unavailable and returns 503.
+
+## Failures investigated
+
+| Failure | Type | Record |
+|---|---|---|
+| Azure region and VM size blocked, auto-shutdown failures, an empty database to migrate | Build / Azure migration | [`docs/evidence/ex03.md`](docs/evidence/ex03.md) "What broke" |
+| Stale A record sends `site.lab.example` to the old VM, so TLS fails on name mismatch | DNS / TLS, **lab simulation supplied with Exercise 5, not my domain** | [`docs/evidence/ex05.md`](docs/evidence/ex05.md) |
+| Requests hang when the database stops, instead of returning 503 | Application / database dependency, found 2026-10-21 | [`docs/evidence/database-outage-check.md`](docs/evidence/database-outage-check.md) |
+| Incoming mail bounced while Namecheap and Zoho MX records were both published | DNS / email | [`docs/evidence/zoho-header-check.md`](docs/evidence/zoho-header-check.md) section 2 |
+| `https://www.caelonk.me` timed out after the `www` record lost its proxy | DNS | Railway plan, Mail section, "Incident during the setup" |
+| Railway ignored `railway.json`: no pre-deploy migration, no health check | Deployment | Railway plan, R4 results |
+| `502 Bad Gateway` for a few seconds after a VM boot | Application startup | Operate-the-VM plan, Restart 1 finding |
+
+## Limitations
+
+- No deliberate data change was made before the Railway copy (see Migration).
+- The 503 behavior was tested against a local Postgres, not by stopping Railway's
+  database.
+- Railway Postgres backup settings haven't been checked, and the dump procedure above
+  hasn't been rehearsed.
+- The `/data/snapshots` volume contents were never listed (`railway ssh` needs a key).
+- `HEAD /` returns 405, because routes accept only `GET`.
+- DMARC is `p=none`; aggregate reports aren't read yet.
+- No LinkedIn link yet. The experience section of the resume isn't on the site.
+
+## Reflection
+
+> **Draft by Claude Code, written 2026-10-20 after the work. Rewrite in your own words.**
+
+- *Understand better:* (your words) e.g. that an error can show up one layer away from
+  its cause (a TLS error caused by DNS; a "hung page" caused by a missing connection
+  timeout), and that "it works" needs a check written down with a date.
+- *Would change:* (your words) e.g. write the deliberate data change into the migration
+  plan before copying, and keep the deploy files in the repo matching the server from
+  day one.
+
+## Costs, expiry and cleanup
+
+| Service | What is billed or limited | Cost / credit | Ends or renews | Cleanup plan |
+|---|---|---|---|---|
+| Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21) | Student credit expiry: *fill in from the Azure portal* | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
+| Railway | Trial: 30 days or $5 of usage; app service, Postgres service and volume | *Fill in: credit used / remaining from the Railway dashboard* | **Trial end date: fill in** | Migrate to AWS after the midterm, before the trial ends; then delete the project |
+| Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
+| Namecheap | Domain `caelonk.me`, registered 2026-10-05 | *Fill in* | *Renewal date: fill in* | Renew or let lapse |
+| Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |
+| Google Analytics 4 | Property for `caelonk.me` | Free | No expiry | Keep |
+
+## Repository map
 
 ```text
-app/
-  config.py
-  main.py
-  static/
-  templates/
-app/db/
-  models.py
-  session.py
-migrations/
-  env.py
-  versions/
-tests/
-  db/
+app/                FastAPI app: routes, services, templates, static files
+app/site_content.py education and profile links (not in the database)
+migrations/         Alembic migrations
+scripts/            copy_sqlite_to_postgres.py (used for the Railway move)
+tests/              pytest suite (routes, database, operations, end-to-end)
+deploy/             Azure VM files: systemd unit, Nginx site, runbook
+Dockerfile          Railway build
+docs/superpowers/   original spec and plans, with dated results
+docs/evidence/      exercise evidence and dated checks
 ```
-
-## Next milestones
-
-- Add publication-aware public content queries
-- Render public profile, resume, and project pages
-- Add authenticated admin editing and session-based login
-- Add snapshot fallback and outage recovery checks
