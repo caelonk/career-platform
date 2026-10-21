@@ -111,3 +111,25 @@ def test_analytics_tag_loads_on_public_pages_only_without_gpc(client):
         assert "googletagmanager.com/gtag/js?id=G-6J1F90ST16" in text
         assert "if (!navigator.globalPrivacyControl)" in text
     assert "googletagmanager.com" not in client.get("/auth/login").text
+
+
+def test_home_shows_education(client):
+    response = client.get("/")
+    assert 'id="education-title"' in response.text
+    assert "Loyola Marymount University" in response.text
+    assert "Information Systems and Business Analytics" in response.text
+
+
+def test_home_links_to_github_profile(client):
+    response = client.get("/")
+    assert 'href="https://github.com/caelonk"' in response.text
+
+
+def test_education_and_links_stay_visible_when_database_is_down(client, monkeypatch):
+    from tests.routes.test_database_outage import _BrokenSession
+
+    monkeypatch.setattr("app.routes.public.SessionLocal", lambda: _BrokenSession())
+    response = client.get("/")
+    assert response.status_code == 503
+    assert "Loyola Marymount University" in response.text
+    assert 'href="https://github.com/caelonk"' in response.text

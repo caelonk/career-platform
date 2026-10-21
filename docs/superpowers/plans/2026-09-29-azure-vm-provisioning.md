@@ -1,5 +1,7 @@
 # Azure VM Provisioning Implementation Plan
 
+> **Status (noted 2026-10-20): not carried out.** None of the tasks below were run, and none of the files the plan creates exist in the repository. The VM was configured by hand instead, as recorded in `docs/superpowers/plans/2026-10-01-operate-the-vm.md`. This plan is kept as written.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Capture the hand-built staging VM as reviewed, tested infrastructure-as-code, add automated preflight/verification checks and an idempotent host bootstrap, and bring the live VM to the state Task 8 of the platform plan expects (service account, directories, hardened SSH) without adding unintended cost.

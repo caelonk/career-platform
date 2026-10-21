@@ -14,7 +14,10 @@ from tests.postgres_support import require_local_test_database
 
 
 @pytest.fixture
-def client():
+def client(tmp_path, monkeypatch):
+    # Keep pages from saving profile.json into the repository's own snapshots folder.
+    monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "client-snapshots"))
+    get_settings.cache_clear()
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     db_session_module.engine = engine
     db_session_module.SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False)
@@ -43,6 +46,7 @@ def client():
     app = create_app()
     with TestClient(app) as test_client:
         yield test_client
+    get_settings.cache_clear()
 
 
 @pytest.fixture

@@ -31,6 +31,10 @@
   <section id="projects" class="section" aria-labelledby="projects-title">
     <h2 id="projects-title" class="section__title">Projects</h2>
 
+    {% if projects_unavailable %}
+      <p class="empty-note" role="status">Projects temporarily unavailable.</p>
+    {% endif %}
+
     {% if featured_project %}
       {% set project = featured_project %}
       <article class="feature{% if project.metrics %} feature--with-stats{% endif %}">
@@ -70,22 +74,33 @@
           </li>
         {% endfor %}
       </ol>
-    {% elif not featured_project %}
+    {% elif not featured_project and not projects_unavailable %}
       <p class="empty-note">No projects are published right now. The resume has the full list of work.</p>
     {% endif %}
   </section>
 
-  {% if profile %}
-    <section id="contact" class="section contact" aria-labelledby="contact-title">
-      <h2 id="contact-title" class="section__title">Contact</h2>
-      {% if profile.email %}
-        <p class="contact__email"><a href="mailto:{{ profile.email }}">{{ profile.email }}</a></p>
-      {% endif %}
-      <ul class="contact__details">
-        {% if profile.location %}<li>{{ profile.location }}</li>{% endif %}
-        {% if profile.phone %}<li><a href="tel:{{ profile.phone }}">{{ profile.phone }}</a></li>{% endif %}
-        <li><a href="/resume.pdf">Resume (PDF)</a></li>
-      </ul>
-    </section>
-  {% endif %}
+  <section id="education" class="section" aria-labelledby="education-title">
+    <h2 id="education-title" class="section__title">Education</h2>
+    <ul class="education">
+      {% for item in education %}
+        <li class="education__item">
+          <p class="education__school">{{ item.school }}</p>
+          <p class="meta">{{ [item.degree, item.detail, item.dates] | select | join(' · ') }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section id="contact" class="section contact" aria-labelledby="contact-title">
+    <h2 id="contact-title" class="section__title">Contact</h2>
+    {% if profile and profile.email %}
+      <p class="contact__email"><a href="mailto:{{ profile.email }}">{{ profile.email }}</a></p>
+    {% endif %}
+    <ul class="contact__details">
+      {% if profile and profile.location %}<li>{{ profile.location }}</li>{% endif %}
+      {% if profile and profile.phone %}<li><a href="tel:{{ profile.phone }}">{{ profile.phone }}</a></li>{% endif %}
+      {% for link in profile_links %}<li><a href="{{ link.url }}" rel="me">{{ link.label }}</a></li>{% endfor %}
+      <li><a href="/resume.pdf">Resume (PDF)</a></li>
+    </ul>
+  </section>
 {% endblock %}

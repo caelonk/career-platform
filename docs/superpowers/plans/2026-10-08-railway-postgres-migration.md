@@ -1234,3 +1234,44 @@ Mail for the domain moved from Namecheap email forwarding to Zoho Mail. It is se
 1. Cloudflare: put back `A @` and `A www` → `52.162.50.66`, DNS only. For `@`, delete the Railway CNAME first, because a CNAME can't share a name with an A record. For `www`, replace the proxied placeholder and delete the "Redirect www to apex" ruleset. Leave the mail records (MX, SPF, DKIM, DMARC, `zoho-verification`) alone, since they don't depend on where the site runs.
 2. Azure portal: start `vm-career-platform`. systemd starts the app at boot; check `https://caelonk.me` from a phone.
 3. Data written on Railway after D3 (admin edits) exists only in Railway Postgres. Before rolling back, the Owner decides whether to re-enter it on the VM.
+
+## Added afterward (2026-10-20)
+
+*Written after the migration, for the Project 1 record. Everything above was written
+before or during the work.*
+
+### What Git moved and what needed another method
+
+| Needed on Railway | How it got there |
+|---|---|
+| Application code, templates, static files, migrations, `Dockerfile`, `railway.json` | **Git**: Railway builds `main` from GitHub on every push |
+| Python version and packages | **Git**, indirectly: `Dockerfile` pins `python:3.12-slim`, and `uv.lock` pins every package; Railway builds the image |
+| Database engine | **Not Git**: the Railway `Postgres` service (PostgreSQL 18.6), created in the dashboard |
+| Schema | **Git** holds the Alembic migration; it was applied by hand before the first deploy (D3) and runs as the pre-deploy command after that |
+| Current data | **Not Git**: copied from the VM's SQLite file with `scripts/copy_sqlite_to_postgres.py` (D2, D3). The database file is git-ignored |
+| Secrets (`SECRET_KEY`, `ADMIN_PASSWORD`) and `DATABASE_URL` | **Not Git**: Railway service variables (R2). `.env` is git-ignored |
+| Snapshot folder | **Not Git**: a Railway volume at `/data` (R3) |
+| Pre-deploy command and health check | Meant to come from `railway.json` in Git, but Railway ignored it; set on the service instead (R4) |
+| Custom domain and certificate | **Not Git**: Railway custom domain plus Cloudflare DNS records |
+
+### Did the copy carry current data, not seed data?
+
+- The repository has **no seed script** for my content (checked across the Git history;
+  only the HTML snapshots hold it). My content was loaded on the VM in one transaction on
+  2026-09-29 (`docs/evidence/ex03.md`, item 7), so a Railway database that matches it
+  row for row came from the VM's file, not from anything in Git.
+- D3 compared every row of all 13 tables, hashed per table: identical.
+- On 2026-10-21 the five public pages served from the VM and from Railway were compared
+  as rendered text: identical
+  (`docs/evidence/azure-vm-check-2026-10-21.md`).
+- **Not done:** the course asks for at least one deliberate change to the original
+  project data before the copy, so that restoring seed data couldn't pass as a transfer.
+  No such change was made before 2026-10-10, and the copy can't be repeated without
+  clearing Railway's database. This is recorded as a gap rather than reconstructed.
+
+### Data written after cutover
+
+Since 2026-10-10 the only known write on Railway is V3's `sequence-check` project (not
+public). Rolling back to the VM would lose any later admin edits unless they are
+re-entered there; step 3 of the rollback covers that, and the README's rollback section
+adds how to export them first.

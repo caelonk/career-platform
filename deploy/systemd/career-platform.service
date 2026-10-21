@@ -1,16 +1,18 @@
+# As installed on the Azure VM at /etc/systemd/system/career-platform.service on
+# 2026-10-05. Results: docs/superpowers/plans/2026-10-01-operate-the-vm.md (section 2).
 [Unit]
-Description=Career Platform FastAPI service
-After=network.target
+Description=career-platform (FastAPI on Uvicorn, behind Nginx)
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=career-platform
-Group=career-platform
-WorkingDirectory=/srv/career-platform
-EnvironmentFile=/etc/career-platform/.env
-ExecStart=/srv/career-platform/.venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
+User=azureuser
+Group=azureuser
+WorkingDirectory=/home/azureuser/career-platform
+ExecStart=/home/azureuser/career-platform/.venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 2
 Restart=on-failure
-RestartSec=5
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
