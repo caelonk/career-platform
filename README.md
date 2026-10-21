@@ -281,7 +281,7 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 
 ## Reflection
 
-> Drafted by Claude Code on 2026-10-20, after the work, from the records linked here.
+> Drafted then edited with Claude Code on 2026-10-20, after the work, from the records linked here.
 
 **What I understand better.** An error often shows up one layer away from its cause.
 In Exercise 5, curl reported a certificate error, but the cause was a stale DNS record
