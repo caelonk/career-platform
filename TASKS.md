@@ -9,7 +9,7 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Rewrite the stale README (Status, Next milestones, sections for requirement 8) → `README.md`
 - [x] Start the VM again (it was deallocated since 2026-10-13) → `docs/evidence/azure-vm-check-2026-10-21.md`
 - [x] Merge PR #1 and PR #3 into `main` → merged 2026-10-21 as `714a6f1`
-- [x] Final commit `8d76e16` (Railway deployment `4acbe4be`) → `docs/project-1-submission.md`
+- [x] Final commit `74642d0` (app code as deployed in `4acbe4be`) → `docs/project-1-submission.md`
 
 ## 1. Profile and project data
 
