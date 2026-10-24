@@ -30,6 +30,24 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parents[1] / "templates"))
 
 
+SLUG_ERROR = "Slug can't be blank or contain spaces. Use letters, numbers and hyphens, like caelonk-me."
+
+
+def _slug_is_valid(slug: str) -> bool:
+    """A slug becomes part of the project's URL, so it must be non-empty with no whitespace."""
+    return bool(slug) and not any(character.isspace() for character in slug)
+
+
+def _invalid_slug_form(request: Request, project_id: int | None, title: str, slug: str, summary: str, publication_status: str):
+    submitted = {"id": project_id, "title": title, "slug": slug, "summary": summary, "publication_status": publication_status}
+    return templates.TemplateResponse(
+        request,
+        "admin/project_form.html",
+        {"request": request, "project": submitted if project_id else None, "values": submitted, "error": SLUG_ERROR},
+        status_code=400,
+    )
+
+
 def _make_unique_slug(session, slug: str) -> str:
     candidate = slug
     suffix = 1
@@ -60,11 +78,13 @@ async def admin_new_project(request: Request):
 async def create_admin_project(
     request: Request,
     title: str = Form(...),
-    slug: str = Form(...),
+    slug: str = Form(""),
     summary: str = Form(...),
     publication_status: str = Form("draft"),
 ):
     require_admin(request)
+    if not _slug_is_valid(slug):
+        return _invalid_slug_form(request, None, title, slug, summary, publication_status)
     session = _session_factory()()
     try:
         existing = session.execute(select(Project).where(Project.slug == slug)).scalar_one_or_none()
@@ -115,11 +135,13 @@ async def update_admin_project(
     request: Request,
     project_id: int,
     title: str = Form(...),
-    slug: str = Form(...),
+    slug: str = Form(""),
     summary: str = Form(...),
     publication_status: str = Form("draft"),
 ):
     require_admin(request)
+    if not _slug_is_valid(slug):
+        return _invalid_slug_form(request, project_id, title, slug, summary, publication_status)
     session = _session_factory()()
     try:
         project = session.get(Project, project_id)
