@@ -38,8 +38,8 @@ def _slug_is_valid(slug: str) -> bool:
     return bool(slug) and not any(character.isspace() for character in slug)
 
 
-def _invalid_slug_form(request: Request, project_id: int | None, title: str, slug: str, summary: str, publication_status: str):
-    submitted = {"id": project_id, "title": title, "slug": slug, "summary": summary, "publication_status": publication_status}
+def _invalid_slug_form(request: Request, project_id: int | None, title: str, slug: str, summary: str, publication_status: str, featured: bool = False):
+    submitted = {"id": project_id, "title": title, "slug": slug, "summary": summary, "publication_status": publication_status, "featured": featured}
     return templates.TemplateResponse(
         request,
         "admin/project_form.html",
@@ -81,10 +81,11 @@ async def create_admin_project(
     slug: str = Form(""),
     summary: str = Form(...),
     publication_status: str = Form("draft"),
+    featured: bool = Form(False),
 ):
     require_admin(request)
     if not _slug_is_valid(slug):
-        return _invalid_slug_form(request, None, title, slug, summary, publication_status)
+        return _invalid_slug_form(request, None, title, slug, summary, publication_status, featured)
     session = _session_factory()()
     try:
         existing = session.execute(select(Project).where(Project.slug == slug)).scalar_one_or_none()
@@ -92,7 +93,7 @@ async def create_admin_project(
             existing.title = title
             existing.summary = summary
             existing.publication_status = publication_status
-            existing.featured = publication_status == "published"
+            existing.featured = featured
             if publication_status == "published":
                 existing.published_at = existing.published_at or datetime.utcnow()
             project = existing
@@ -104,7 +105,7 @@ async def create_admin_project(
                 slug=unique_slug,
                 summary=summary,
                 publication_status=publication_status,
-                featured=publication_status == "published",
+                featured=featured,
             )
         if publication_status == "published":
             generate_public_snapshot(session, Path(get_settings().snapshot_dir))
@@ -138,10 +139,11 @@ async def update_admin_project(
     slug: str = Form(""),
     summary: str = Form(...),
     publication_status: str = Form("draft"),
+    featured: bool = Form(False),
 ):
     require_admin(request)
     if not _slug_is_valid(slug):
-        return _invalid_slug_form(request, project_id, title, slug, summary, publication_status)
+        return _invalid_slug_form(request, project_id, title, slug, summary, publication_status, featured)
     session = _session_factory()()
     try:
         project = session.get(Project, project_id)
@@ -152,7 +154,7 @@ async def update_admin_project(
         project.slug = slug if existing_same_slug is None else _make_unique_slug(session, slug)
         project.summary = summary
         project.publication_status = publication_status
-        project.featured = publication_status == "published"
+        project.featured = featured
         if publication_status == "published":
             project.published_at = project.published_at or datetime.utcnow()
         session.commit()
