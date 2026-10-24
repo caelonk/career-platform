@@ -5,25 +5,27 @@
 {% block content %}
   <section class="card narrow-card">
     <h1>{% if project %}Edit project{% else %}Create project{% endif %}</h1>
+    {% set v = values if values else project %}
+    {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
     <form method="post" action="{% if project %}/admin/projects/{{ project.id }}{% else %}/admin/projects{% endif %}">
       <label>
         Title
-        <input type="text" name="title" value="{{ project.title if project else '' }}" required />
+        <input type="text" name="title" value="{{ v.title if v else '' }}" required />
       </label>
       <label>
         Slug
-        <input type="text" name="slug" value="{{ project.slug if project else '' }}" required />
+        <input type="text" name="slug" value="{{ v.slug if v else '' }}" required pattern="[^\s]+" title="No spaces. Use letters, numbers and hyphens, like caelonk-me." />
       </label>
       <label>
         Summary
-        <textarea name="summary" required>{{ project.summary if project else '' }}</textarea>
+        <textarea name="summary" required>{{ v.summary if v else '' }}</textarea>
       </label>
       <label>
         Status
         <select name="publication_status">
-          <option value="draft" {% if project and project.publication_status == 'draft' %}selected{% endif %}>Draft</option>
-          <option value="published" {% if project and project.publication_status == 'published' %}selected{% endif %}>Published</option>
-          <option value="archived" {% if project and project.publication_status == 'archived' %}selected{% endif %}>Archived</option>
+          <option value="draft" {% if v and v.publication_status == 'draft' %}selected{% endif %}>Draft</option>
+          <option value="published" {% if v and v.publication_status == 'published' %}selected{% endif %}>Published</option>
+          <option value="archived" {% if v and v.publication_status == 'archived' %}selected{% endif %}>Archived</option>
         </select>
       </label>
       <button type="submit">Save</button>
