@@ -787,7 +787,7 @@ a:hover {
   margin: 0 0 1.25rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--danger);
-  border-radius: 6px;
+  border-radius: 0.5rem;
   background: var(--danger-wash);
   color: var(--danger);
   font-family: var(--font-ui);
