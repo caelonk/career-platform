@@ -1,7 +1,7 @@
 # Project 1 gaps
 
 From the requirements audit on 2026-10-20. Each line names the file or check that closes it.
-Updated 2026-10-21 on branch `project-1-followup`.
+Final check 2026-10-24: all requirement areas covered; open items below are known and recorded.
 
 ## Cross-cutting
 
@@ -9,7 +9,7 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Rewrite the stale README (Status, Next milestones, sections for requirement 8) → `README.md`
 - [x] Start the VM again (it was deallocated since 2026-10-13) → `docs/evidence/azure-vm-check-2026-10-21.md`
 - [x] Merge PR #1 and PR #3 into `main` → merged 2026-10-21 as `714a6f1`
-- [x] Final commit `74642d0` (app code as deployed in `4acbe4be`) → `docs/project-1-submission.md`
+- [x] Final commit `b3fc245` (Railway deployment `a6e449f3`) → `docs/project-1-submission.md`
 
 ## 1. Profile and project data
 
@@ -20,7 +20,8 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Add a GitHub link → `app/site_content.py`
 - [x] Add a LinkedIn link → `app/site_content.py`
 - [x] Publish the "this website" project → public on `https://caelonk.me` (2026-10-21)
-- [ ] Tidy that project in `/admin`: untick Featured, change the slug from `in progress` to e.g. `caelonk-me`, replace the placeholder title and summary
+- [x] Untick Featured on that project → Technician Dispatch Dashboard is featured again (2026-10-24)
+- [ ] Give that project a real slug (now `-`) and summary (now blank) in `/admin` → listed in README "Limitations"
 - [x] Explain why SQLite was the first database engine → README "Decisions" 3 (draft)
 
 ## 2. Azure deployment
@@ -67,3 +68,10 @@ Updated 2026-10-21 on branch `project-1-followup`.
 - [x] Railway trial end date (about 2026-11-05) and credit ($4.11 left) → README "Costs, expiry and cleanup"
 - [x] Azure cost ($3.99; the portal shows no expiry date) and domain expiry (2027-10-05) → same table
 - [x] Ex04 HTTPS explanation confirmed → `docs/how-this-site-is-secured.md`
+
+## After submission
+
+- [x] Rotate the Railway PostgreSQL password (Railway disclosure, 2026-10-22) → `docs/evidence/railway-credential-rotation-2026-10-24.md`
+- [x] Admin rejects blank or spaced slugs → PR #8
+- [x] Admin Featured checkbox → PR #9
+- [ ] Optional: remove the `isba4775_azure` SSH key from Railway (`railway ssh keys`)
