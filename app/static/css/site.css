@@ -831,6 +831,22 @@ textarea {
   resize: vertical;
 }
 
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 500;
+}
+
+.checkbox-field input {
+  width: 1.125rem;
+  min-height: 0;
+  height: 1.125rem;
+  padding: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {

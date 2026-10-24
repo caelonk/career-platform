@@ -28,6 +28,10 @@
           <option value="archived" {% if v and v.publication_status == 'archived' %}selected{% endif %}>Archived</option>
         </select>
       </label>
+      <label class="checkbox-field">
+        <input type="checkbox" name="featured" value="true"{% if v and v.featured %} checked{% endif %} />
+        Feature at the top of the home page
+      </label>
       <button type="submit">Save</button>
     </form>
   </section>
