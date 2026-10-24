@@ -4,7 +4,7 @@
 |---|---|
 | Repository | <https://github.com/caelonk/career-platform> |
 | Live site | <https://caelonk.me> |
-| Final commit | [`74642d0`](https://github.com/caelonk/career-platform/commit/74642d0fe8d08fa3285548e67e04c14df57ca23e) (2026-10-21). The app code is the same as `8d76e16`, deployed on Railway as `4acbe4be`; later commits change only documents. One docs-only commit follows it, adding this line |
+| Final commit | [`b3fc245`](https://github.com/caelonk/career-platform/commit/b3fc2452fa77dfad48f7f835c52449d64bcb108a) (2026-10-24), deployed on Railway as `a6e449f3`. One docs-only commit follows it, adding this line. (Earlier recorded final commit: `74642d0`, 2026-10-21.) |
 | Explanation of the system | [README](../README.md) |
 
 Items marked **gap** or **unverified** are known to be missing or unchecked.
@@ -47,6 +47,7 @@ Items marked **gap** or **unverified** are known to be missing or unchecked.
 ## 5. Reviewed commit, its Railway deployment, and the live change
 
 - [`evidence/reviewed-change.md`](evidence/reviewed-change.md)
+- Later reviewed changes through the same path: [PR #8](https://github.com/caelonk/career-platform/pull/8) (slug validation) and [PR #9](https://github.com/caelonk/career-platform/pull/9) (Featured checkbox), deployed 2026-10-24
 - Recovery for code and data: [README, "Rollback"](../README.md#rollback)
 
 ## 6. Zoho sending, receiving, replying and DNS authentication
@@ -67,4 +68,5 @@ Items marked **gap** or **unverified** are known to be missing or unchecked.
 - Reflection: [README, "Reflection"](../README.md#reflection)
 - Costs, expiry and cleanup: [README, "Costs, expiry and cleanup"](../README.md#costs-expiry-and-cleanup)
 - Limitations: [README, "Limitations"](../README.md#limitations)
+- Security follow-up: [`evidence/railway-credential-rotation-2026-10-24.md`](evidence/railway-credential-rotation-2026-10-24.md) (Railway PostgreSQL password rotation)
 - My HTTPS explanation for Exercise 4: [`how-this-site-is-secured.md`](how-this-site-is-secured.md)

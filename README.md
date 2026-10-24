@@ -159,6 +159,8 @@ TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/ca
    its commit SHA, then check the change at `https://caelonk.me`.
 
 Example with evidence: [`docs/evidence/reviewed-change.md`](docs/evidence/reviewed-change.md).
+Later changes followed the same path: admin slug validation (PR #8) and the Featured
+checkbox (PR #9), both deployed on 2026-10-24.
 
 ## Rollback
 
@@ -264,6 +266,8 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 | Incoming mail bounced while Namecheap and Zoho MX records were both published | DNS / email | [`docs/evidence/zoho-header-check.md`](docs/evidence/zoho-header-check.md) section 2 |
 | `https://www.caelonk.me` timed out after the `www` record lost its proxy | DNS | Railway plan, Mail section, "Incident during the setup" |
 | Railway ignored `railway.json`: no pre-deploy migration, no health check | Deployment | Railway plan, R4 results |
+| Database password rotated after Railway's 2026-10-22 security disclosure; site served 503 for about 2 minutes, old password rejected, no signs of misuse | Security / database dependency, 2026-10-24 | [`docs/evidence/railway-credential-rotation-2026-10-24.md`](docs/evidence/railway-credential-rotation-2026-10-24.md) |
+| Admin accepted blank or spaced slugs (`/projects/%20`) and featured every published save | Application, fixed 2026-10-24 | PR #8, PR #9 |
 | `502 Bad Gateway` for a few seconds after a VM boot | Application startup | Operate-the-VM plan, Restart 1 finding |
 
 ## Limitations
@@ -273,11 +277,16 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
   database.
 - Railway Postgres backup settings haven't been checked, and the dump procedure above
   hasn't been rehearsed.
-- The `/data/snapshots` volume contents were never listed (`railway ssh` needs a key).
+- The `/data/snapshots` volume contents were never listed.
+- `/health` doesn't query the database, so Railway's health check stays green when the
+  app can't reach it (seen during the credential rotation). The home page's 503 shows it.
+- Railway says `railway.json` stops being read on 2026-12-01; the deploy settings live on
+  the service, and the site moves to AWS before then.
 - `HEAD /` returns 405, because routes accept only `GET`.
 - DMARC is `p=none`; aggregate reports aren't read yet.
 - The experience section of my resume isn't on the site yet.
-- The "this website" project exists in `/admin` as a draft, so it isn't public yet.
+- The "This website is in progress" project has a placeholder slug (`-`) and an empty
+  summary; admin doesn't yet reject blank titles or summaries.
 
 ## Reflection
 
