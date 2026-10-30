@@ -175,14 +175,37 @@ checkbox (PR #9), both deployed on 2026-10-24.
 
 ### Bad data or a bad migration
 
-- **Before** a change that edits or deletes data, or a new migration, take a dump. The
-  laptop has no `pg_dump`, so run it from the Postgres image with the public URL injected
-  by Railway:
-  `railway run --service Postgres -- docker run --rm -e DATABASE_PUBLIC_URL postgres:18 sh -c 'pg_dump --no-owner "$DATABASE_PUBLIC_URL"' > backup-YYYYMMDD.sql`
-  (keep the file outside the repository; it contains personal data). *Not yet rehearsed.*
+- **Before** a change that edits or deletes data, or a new migration, take a dump.
+  Railway's Postgres has no public address (no `DATABASE_PUBLIC_URL`) and the laptop has
+  no `pg_dump`, so run `pg_dump` inside the Postgres container over `railway ssh` and
+  carry the file down as base64 (Git Bash). Keep it outside the repository; it contains
+  personal data.
+
+  ```bash
+  D=~/Downloads/backups; mkdir -p "$D"; F="$D/career_platform-$(date -u +%Y%m%d-%H%M%SZ).dump"
+  railway ssh --service Postgres -- "pg_dump -U \"\$PGUSER\" -d \"\$PGDATABASE\" -Fc --no-owner --no-privileges -f /tmp/cp.dump && sha256sum /tmp/cp.dump >&2 && base64 -w0 /tmp/cp.dump; rm -f /tmp/cp.dump" 2>"$D/ssh.log" | base64 -d > "$F"
+  grep -E '^[0-9a-f]{64}' "$D/ssh.log"; sha256sum "$F"   # the two hashes must match
+  ```
+
+  The container's `/tmp` is not the database volume, and the file is deleted after the copy.
+- **Check a dump restores** (Docker Desktop running). Use the same major version as
+  Railway (18):
+
+  ```bash
+  docker run -d --name cp-restore-test -e POSTGRES_USER=career_platform -e POSTGRES_PASSWORD=restoretest -e POSTGRES_DB=career_platform postgres:18
+  until docker exec cp-restore-test pg_isready -h 127.0.0.1 -U career_platform >/dev/null 2>&1; do sleep 2; done   # TCP only answers once setup has finished
+  MSYS_NO_PATHCONV=1 docker cp "$(cygpath -w "$F")" cp-restore-test:/tmp/backup.dump
+  MSYS_NO_PATHCONV=1 docker exec cp-restore-test pg_restore -U career_platform -d career_platform --exit-on-error --no-owner --no-privileges /tmp/backup.dump
+  ```
+
+  Then compare row counts per table with the live database (`railway ssh --service
+  Postgres -- psql ...`), and remove the container with `docker rm -f cp-restore-test`.
+  Rehearsed 2026-10-29: the restore matched the live database in all 14 tables, by row
+  count and by a per-table content hash, and the app served `/health` and `/` from it.
 - **A wrong admin edit:** fix it again in `/admin`; every change is a normal row update.
 - **A bad migration:** write a new migration that reverses it, or restore the dump into
-  an empty database. The current single migration has no earlier state to go back to.
+  an empty database with `pg_restore` as above. The current single migration has no
+  earlier state to go back to.
 
 ### Back to the Azure VM
 
@@ -275,8 +298,8 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 - No deliberate data change was made before the Railway copy (see Migration).
 - The 503 behavior was tested against a local Postgres, not by stopping Railway's
   database.
-- Railway Postgres backup settings haven't been checked, and the dump procedure above
-  hasn't been rehearsed.
+- Railway Postgres backup settings haven't been checked. The manual dump procedure above
+  was rehearsed on 2026-10-29, but it only runs when I run it.
 - The `/data/snapshots` volume contents were never listed.
 - `/health` doesn't query the database, so Railway's health check stays green when the
   app can't reach it (seen during the credential rotation). The home page's 503 shows it.
