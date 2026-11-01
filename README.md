@@ -207,6 +207,21 @@ checkbox (PR #9), both deployed on 2026-10-24.
   an empty database with `pg_restore` as above. The current single migration has no
   earlier state to go back to.
 
+### Backup record
+
+| Item | Value |
+|---|---|
+| What is backed up | The Postgres database (`pg_dump -Fc`) and the app volume's `/data/snapshots` (8 generated files, rebuilt from the database on the next admin save; `profile.json` is the home page's fallback when the database is down). The app has no file uploads |
+| Latest backup | Database 2026-10-30 23:30 UTC (`career_platform-20261030-233003Z.dump`, 37,512 bytes); volume 2026-10-30 23:32 UTC (`career_platform-volume-20261030-233222Z.tar.gz`). First backup and restore test 2026-10-29 |
+| Where the copies are | Laptop `~/Downloads/backups/` and a private Google Drive folder `career-platform-backups`. SHA-256 of each Drive copy was checked against the laptop file on 2026-11-01 |
+| Restore time | 9 seconds from starting an empty Postgres 18 container to the restore finishing (2026-10-30) |
+| Restore check | Row counts and a per-table content hash matched the live database for all 14 tables; the app served `/health` and `/` from the restored copy, with Railway not involved |
+| Frequency | Weekly, and before any admin edits in bulk, a new migration, or the AWS cutover |
+| Retention | The last 4 weekly dumps, plus the pre-migration dumps until the AWS move is verified |
+| RPO (acceptable data loss) | 1 week. The site only changes when I edit it in `/admin`, so a week of edits can be redone by hand |
+| RTO (acceptable downtime) | 1 hour to restore into a new database and point the app at it |
+| Not covered | Railway's own backup settings haven't been checked. Backups are manual, so they only happen when I take them. After the AWS move, RDS automated backups (7 days) add to this, and a dump outside AWS is still kept |
+
 ### Back to the Azure VM
 
 The full procedure is in the Railway plan's
