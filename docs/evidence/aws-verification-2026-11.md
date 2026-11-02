@@ -49,3 +49,18 @@ Railway throughout.
 
 - Behaviour when RDS is down (the home page's 503 path) was not tested on AWS.
 - Billing for the first full day hadn't appeared yet.
+
+## Cutover (plan Task 9), 2026-11-02
+
+| Step | What ran | Result |
+|---|---|---|
+| Stable address | Elastic IP `44.217.5.57` (`eipalloc-0875748c139db4f5d`) associated; host key re-checked (unchanged `SHA256:p3A+X3NL…`); `aws.caelonk.me` moved to it | ✅ |
+| Certificate before traffic | `certbot certonly --manual --preferred-challenges dns -d caelonk.me` with a hook; the `_acme-challenge` TXT was added from the laptop with `cf` and deleted after issue. Nginx site `caelonk-me` added ([`deploy/aws/nginx-caelonk-me.conf`](../../deploy/aws/nginx-caelonk-me.conf)) | Issued; served correctly when tested with `--resolve` before the DNS change ✅ |
+| Freeze and final backup | Owner: no admin edits from the go. Final dump `career_platform-final-20261102-010352Z.dump` + volume, checksums verified | Identical to the 00:41 backup (no Railway changes) ✅ |
+| Final restore | Service stopped; `drop schema public cascade; create schema public;`; `pg_restore`; snapshots replaced; `alembic current` at head; service started | 14 tables, 6 projects with flags, profile identical to the final backup; `aws-target-check` gone; home page links identical to Railway ✅ |
+| DNS change | Cloudflare `caelonk.me` CNAME `l29it1kr.up.railway.app` → A `44.217.5.57`, DNS only, TTL 60, at **01:05:24 UTC**. First attempt was rejected (comment over 100 characters) and changed nothing | 11 records before and after; MX, SPF, DKIM, DMARC, `www` redirect unchanged ✅ |
+| Verify production | After `ipconfig /flushdns`: `Server: nginx/1.24.0 (Ubuntu)`; certificate CN `caelonk.me`, Let's Encrypt YE1; home, 5 project pages, resume, CSS, favicon, `/auth/login` 200; `/admin` 303 to login; 404 page; `http://` → 301 `https://`; `www` → 301 `https://caelonk.me/`; 3 Zoho MX records | ✅ |
+| Automatic renewal | `certbot reconfigure` didn't change the authenticator (renewal still pointed at the deleted hook), so the certificate was re-issued with `certonly --nginx --force-renewal` after a passing `--dry-run` | `authenticator = nginx`; `certbot renew --dry-run` succeeds for `caelonk.me` and `aws.caelonk.me` ✅ |
+| AWS procedures | Backup from the instance (dump + volume) restored locally with every table identical to the final Railway backup; deploy command rerun with the same commit | ✅ |
+
+Railway still runs, unedited, as a rollback until its trial ends (about 2026-11-05).

@@ -2,8 +2,8 @@
 
 My personal career site at **<https://caelonk.me>**: profile, education, contact details,
 a downloadable resume, and project case studies read from a database on every request.
-It began in Codespaces, ran on an Azure Linux VM, and now runs on Railway with
-PostgreSQL. It is the starting point for the career platform built through the semester.
+It began in Codespaces, ran on an Azure Linux VM and then Railway, and since 2026-11-02
+runs on AWS: an EC2 instance with a private RDS PostgreSQL database. It is the starting point for the career platform built through the semester.
 
 - Project 1 submission index: [`docs/project-1-submission.md`](docs/project-1-submission.md)
 - Original spec: [`docs/superpowers/specs/2026-09-15-personal-career-platform-design.md`](docs/superpowers/specs/2026-09-15-personal-career-platform-design.md)
@@ -18,7 +18,7 @@ PostgreSQL. It is the starting point for the career platform built through the s
 | `/resume.pdf` | Resume | `app/static/resume/resume.pdf` |
 | `/privacy` | What Google Analytics collects and how to opt out | Template |
 | `/admin` | Log in, create and edit projects | Database; password hash in `ADMIN_PASSWORD` |
-| `/health` | `{"status":"ok"}` for Railway's health check | Code only (doesn't touch the database) |
+| `/health` | `{"status":"ok"}` for health checks | Code only (doesn't touch the database) |
 
 **When the database is down,** the home page keeps the last profile it read, says
 "Projects temporarily unavailable." and returns **HTTP 503**. Project pages return 503.
@@ -26,27 +26,67 @@ The next request after the database recovers reads it again, with no restart. A 
 request returns 200. Evidence: [`docs/evidence/database-outage-check.md`](docs/evidence/database-outage-check.md).
 An empty projects table shows "No projects are published right now."
 
-## AWS copy (being tested, not live yet)
+## How it runs now (AWS)
 
-A verified copy runs on AWS at **<https://aws.caelonk.me>** while `caelonk.me` stays on
-Railway. Railway's trial ends about 2026-11-05, so the plan is to move `caelonk.me` to AWS
-this week (plan Task 9).
+`caelonk.me` moved from Railway to AWS on **2026-11-02 at 01:05 UTC** (plan Task 9).
 
 - **Decision:** I chose EC2 with Single-AZ RDS over EC2 with local PostgreSQL because I
   want AWS to run the database (backups, patching), and I accept about $20 a month more and
   one more service to manage.
-- **What runs where:** Nginx on an Ubuntu 24.04 `t3.small` ends HTTPS (Let's Encrypt) and
-  passes requests to Uvicorn on `127.0.0.1:8000`, run by systemd as the non-root user
-  `career-platform`. The app reaches RDS PostgreSQL 18.6 (`db.t4g.micro`, not public) over
-  the default VPC with verified TLS. Files: [`deploy/aws/`](deploy/aws/).
-- **Plan and evidence:** [`docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md),
-  [`docs/evidence/aws-verification-2026-11.md`](docs/evidence/aws-verification-2026-11.md).
-  Every check passed; the 1-day RDS backup limit is the one deviation.
+- **Request path:** Cloudflare DNS (A record `caelonk.me` → Elastic IP `44.217.5.57`, DNS
+  only, so Cloudflare doesn't proxy) → EC2 `career-platform-web` (`t3.small`, Ubuntu 24.04,
+  `us-east-1a`) → Nginx ends HTTPS with Let's Encrypt → Uvicorn on `127.0.0.1:8000`, run by
+  systemd as the non-root user `career-platform` → RDS PostgreSQL 18.6
+  (`career-platform-db`, `db.t4g.micro`, not public) over the default VPC with verified
+  TLS. `www.caelonk.me` is still a Cloudflare redirect to `https://caelonk.me`, and
+  `aws.caelonk.me` points at the same instance.
+- **Where data persists:** RDS (encrypted gp3, 1 day of automated backups) and
+  `/var/lib/career-platform/snapshots` on the instance's encrypted disk. Secrets live in
+  `/etc/career-platform/env` (`640 root:career-platform`), never in Git.
+- **Admin access:** SSH with a key, only from my laptop's IP. RDS is reachable only from
+  the instance.
+- **Files:** [`deploy/aws/`](deploy/aws/). **Plan:** [`docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md).
+  **Evidence:** [`docs/evidence/aws-verification-2026-11.md`](docs/evidence/aws-verification-2026-11.md).
 - **Cost:** about $34.41 a month from $120 of credits (see Costs below).
-- **Next step:** cut over `caelonk.me` (Elastic IP, certificate, final backup and
-  restore, one DNS change), then retire Railway.
 
-## How it runs now (Railway)
+### Updating the site on AWS
+
+Merging to `main` no longer changes the live site; it only redeploys Railway until that
+project is deleted. To deploy a reviewed, pushed commit `<sha>` (rehearsed 2026-11-02):
+
+```bash
+ssh career-platform-aws "sudo -u career-platform -H bash -c 'cd /opt/career-platform/app && git fetch -q origin && git -c advice.detachedHead=false checkout -q <sha> && UV_PROJECT_ENVIRONMENT=/opt/career-platform/.venv UV_CACHE_DIR=/opt/career-platform/.cache/uv UV_PYTHON_DOWNLOADS=never uv sync --locked --no-dev -q' && sudo systemd-run --quiet --wait --pipe --uid=career-platform -p EnvironmentFile=/etc/career-platform/env -p WorkingDirectory=/opt/career-platform/app /opt/career-platform/.venv/bin/alembic upgrade head && sudo systemctl restart career-platform"
+```
+
+Then check `https://caelonk.me/health`. To roll back code, run the same command with the
+previous SHA. Never `source` the env file: `ADMIN_PASSWORD` contains `$` characters.
+
+### Backing up on AWS
+
+RDS isn't reachable from the laptop, so the dump runs on the instance and is copied down
+(rehearsed 2026-11-02: it restored with every table identical to the final Railway backup):
+
+```bash
+D=~/Downloads/backups; F="$D/career_platform-aws-$(date -u +%Y%m%d-%H%M%SZ).dump"
+ssh career-platform-aws 'sudo bash -c '"'"'pg_dump -Fc --no-owner --no-privileges -d "$(grep ^DATABASE_URL= /etc/career-platform/env | cut -d= -f2-)" -f /tmp/cp.dump && chmod 644 /tmp/cp.dump && sha256sum /tmp/cp.dump'"'"'' | cut -c1-64 > "$D/remote.sha"
+scp -q career-platform-aws:/tmp/cp.dump "$F" && ssh career-platform-aws 'sudo rm -f /tmp/cp.dump'
+[ "$(cat "$D/remote.sha")" = "$(sha256sum "$F" | cut -c1-64)" ] && echo ok || echo MISMATCH; rm -f "$D/remote.sha"
+ssh career-platform-aws 'sudo tar -czf - -C /var/lib/career-platform snapshots' > "$D/career_platform-aws-volume-$(date -u +%Y%m%d-%H%M%SZ).tar.gz"
+```
+
+Copy both files to the Google Drive folder `career-platform-backups`. Schedule, retention,
+RPO and RTO are in "Backup record" below.
+
+### Back to Railway (only until its trial ends, about 2026-11-05)
+
+Railway still runs, unedited, with the data as of the final backup (2026-11-02 01:03 UTC).
+To go back: in Cloudflare, change the `caelonk.me` record back to **CNAME
+`l29it1kr.up.railway.app`, DNS only** (saved in [`docs/evidence/dns-before-aws.md`](docs/evidence/dns-before-aws.md)).
+If anything was edited in `/admin` on AWS since the cutover, dump RDS first and re-enter
+those changes on Railway; DNS doesn't move data. After the trial ends this rollback no
+longer exists; restore from a dump into a new database instead.
+
+## How it ran before (Railway, 2026-10-10 to 2026-11-02)
 
 ```mermaid
 flowchart LR
@@ -158,7 +198,7 @@ docker compose --profile postgres up -d postgres
 TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/career_platform python -m pytest -q
 ```
 
-## Production settings (Railway)
+## Production settings (Railway, historical)
 
 | Setting | Where it lives |
 |---|---|
@@ -168,7 +208,10 @@ TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/ca
 | Pre-deploy `alembic upgrade head`, health check `/health` | Railway service settings (Railway ignores `railway.json` for this service) |
 | Custom domain `caelonk.me` | Railway service networking, plus Cloudflare DNS |
 
-## Updating the site
+## Updating the site (Railway era)
+
+For AWS, see "Updating the site on AWS" above.
+
 
 1. Work on a branch. Run `python -m pytest -q` and check the change locally.
 2. Open a pull request and review the diff.
@@ -182,7 +225,10 @@ Example with evidence: [`docs/evidence/reviewed-change.md`](docs/evidence/review
 Later changes followed the same path: admin slug validation (PR #8) and the Featured
 checkbox (PR #9), both deployed on 2026-10-24.
 
-## Rollback
+## Rollback (Railway era)
+
+For AWS, see "Updating the site on AWS" and "Back to Railway" above. The backup
+procedure below dumps the Railway database; for AWS use "Backing up on AWS".
 
 ### Bad code
 
@@ -377,7 +423,7 @@ and turn on database backups from the start.
 |---|---|---|---|---|
 | Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | The portal shows current cost only ($3.99 from use, 2026-10-21), no credit expiry date | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
 | Railway | Trial: 30 days or $5 of usage, whichever comes first; app service, Postgres service and volume | **$4.11 of $5 left** (dashboard, 2026-10-20) | **16 days left on 2026-10-20, so the trial ends about 2026-11-05** | Migrate to AWS after the midterm and before 2026-11-05; then delete the Railway project |
-| AWS (planned, not created yet) | EC2 `t3.small` (Standard CPU credits), 20 GB gp3 instance disk, one public IPv4, RDS PostgreSQL `db.t4g.micro` Single-AZ with 20 GB gp3. Estimate below | **About $34.41 a month (about $1.13 a day)** from AWS's public us-east-1 price list (files updated 2026-10-29), read 2026-11-01. **$120 of credits**, zero-spend budget (owner, 2026-11-01) | **Credits expire 2027-04-29**; at $34.41 a month they run out first, about 2027-02-15 | Terminate the instance, delete RDS with a final snapshot, delete security groups, subnet group, key pair and the `aws` DNS record when the course ends |
+| AWS (live since 2026-11-02) | EC2 `t3.small` (Standard CPU credits), 20 GB gp3 instance disk, one public IPv4, RDS PostgreSQL `db.t4g.micro` Single-AZ with 20 GB gp3. Estimate below | **About $34.41 a month (about $1.13 a day)** from AWS's public us-east-1 price list (files updated 2026-10-29), read 2026-11-01. **$120 of credits**, zero-spend budget (owner, 2026-11-01) | **Credits expire 2027-04-29**; at $34.41 a month they run out first, about 2027-02-15 | Terminate the instance, delete RDS with a final snapshot, delete security groups, subnet group, key pair and the `aws` DNS record when the course ends |
 | Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
 | Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | **Expires 2027-10-05** (Namecheap dashboard) | Renew before 2027-10-05, or let it lapse if the site moves to another name |
 | Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |

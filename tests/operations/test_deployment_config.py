@@ -77,3 +77,14 @@ def test_aws_env_example_lists_keys_without_values():
     text = "\n".join(lines)
     assert "sslmode=verify-full" in text
     assert "sslrootcert=/etc/ssl/certs/rds-global-bundle.pem" in text
+
+
+def test_aws_caelonk_me_site_serves_https_and_redirects_http():
+    # As installed on the EC2 instance at cutover, 2026-11-02 (plan Task 9).
+    config = Path("deploy/aws/nginx-caelonk-me.conf").read_text()
+    assert "server_name caelonk.me;" in config
+    assert "listen 443 ssl;" in config
+    assert "ssl_certificate /etc/letsencrypt/live/caelonk.me/fullchain.pem;" in config
+    assert "return 301 https://$host$request_uri;" in config
+    assert "proxy_pass http://127.0.0.1:8000;" in config
+    assert "proxy_set_header X-Forwarded-Proto $scheme;" in config
