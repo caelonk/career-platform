@@ -16,8 +16,8 @@
 |---|---|
 | Guide 1–4 (budget, decision, backup, IAM user, CLI) | Done 2026-11-01 (drawing skipped by owner) |
 | G1 cost estimate | Done 2026-11-01: $34.41/month; $120 credits to 2027-04-29, zero-spend budget |
-| G2 deployment policy review | In progress |
-| Tasks 1–8 | Not started |
+| G2 deployment policy review | Done 2026-11-01 |
+| Tasks 1–8 | Done 2026-11-02 (evidence: docs/evidence/aws-verification-2026-11.md) |
 | Cutover (Task 9) | **In scope this week** (owner, 2026-11-01): Railway trial ends about 2026-11-05. Still needs Task 8 to pass and the owner's go |
 
 ## Global Constraints

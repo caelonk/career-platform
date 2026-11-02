@@ -26,6 +26,26 @@ The next request after the database recovers reads it again, with no restart. A 
 request returns 200. Evidence: [`docs/evidence/database-outage-check.md`](docs/evidence/database-outage-check.md).
 An empty projects table shows "No projects are published right now."
 
+## AWS copy (being tested, not live yet)
+
+A verified copy runs on AWS at **<https://aws.caelonk.me>** while `caelonk.me` stays on
+Railway. Railway's trial ends about 2026-11-05, so the plan is to move `caelonk.me` to AWS
+this week (plan Task 9).
+
+- **Decision:** I chose EC2 with Single-AZ RDS over EC2 with local PostgreSQL because I
+  want AWS to run the database (backups, patching), and I accept about $20 a month more and
+  one more service to manage.
+- **What runs where:** Nginx on an Ubuntu 24.04 `t3.small` ends HTTPS (Let's Encrypt) and
+  passes requests to Uvicorn on `127.0.0.1:8000`, run by systemd as the non-root user
+  `career-platform`. The app reaches RDS PostgreSQL 18.6 (`db.t4g.micro`, not public) over
+  the default VPC with verified TLS. Files: [`deploy/aws/`](deploy/aws/).
+- **Plan and evidence:** [`docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md),
+  [`docs/evidence/aws-verification-2026-11.md`](docs/evidence/aws-verification-2026-11.md).
+  Every check passed; the 1-day RDS backup limit is the one deviation.
+- **Cost:** about $34.41 a month from $120 of credits (see Costs below).
+- **Next step:** cut over `caelonk.me` (Elastic IP, certificate, final backup and
+  restore, one DNS change), then retire Railway.
+
 ## How it runs now (Railway)
 
 ```mermaid
@@ -310,6 +330,10 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 
 ## Limitations
 
+- AWS: RDS keeps only 1 day of automated backups (Free plan limit); the weekly manual
+  dumps are what meet the 1-week RPO. The app connects to RDS as the master user rather
+  than a least-privilege role. The EC2 public IP is auto-assigned until the cutover adds an
+  Elastic IP. The "database down" 503 path wasn't tested on AWS.
 - No deliberate data change was made before the Railway copy (see Migration).
 - The 503 behavior was tested against a local Postgres, not by stopping Railway's
   database.
