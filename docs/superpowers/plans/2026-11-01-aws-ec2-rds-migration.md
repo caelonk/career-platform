@@ -15,9 +15,10 @@
 | Step | State |
 |---|---|
 | Guide 1–4 (budget, decision, backup, IAM user, CLI) | Done 2026-11-01 (drawing skipped by owner) |
-| G1 cost estimate, G2 deployment policy review | Not started |
+| G1 cost estimate | Done 2026-11-01: $34.41/month; $120 credits to 2027-04-29, zero-spend budget |
+| G2 deployment policy review | In progress |
 | Tasks 1–8 | Not started |
-| Cutover (Task 9) | Not planned for class; needs its own go |
+| Cutover (Task 9) | **In scope this week** (owner, 2026-11-01): Railway trial ends about 2026-11-05. Still needs Task 8 to pass and the owner's go |
 
 ## Global Constraints
 
