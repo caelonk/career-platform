@@ -45,3 +45,35 @@ def test_dockerignore_keeps_secrets_and_local_data_out_of_the_image():
     ignored = Path(".dockerignore").read_text().splitlines()
     for entry in (".env", "*.db", ".venv", "snapshots"):
         assert entry in ignored
+
+
+def test_aws_unit_runs_as_service_user_behind_nginx():
+    unit = Path("deploy/aws/career-platform.service").read_text()
+    assert "User=career-platform" in unit
+    assert "EnvironmentFile=/etc/career-platform/env" in unit
+    assert "WorkingDirectory=/opt/career-platform/app" in unit
+    assert "--host 127.0.0.1 --port 8000 --workers 2" in unit
+    assert "--proxy-headers --forwarded-allow-ips 127.0.0.1" in unit
+    assert "After=network-online.target" in unit
+    assert "ReadWritePaths=/var/lib/career-platform" in unit
+    assert "Restart=on-failure" in unit
+    assert "WantedBy=multi-user.target" in unit
+
+
+def test_aws_nginx_serves_test_host_only_and_proxies_locally():
+    config = Path("deploy/aws/nginx-career-platform.conf").read_text()
+    assert "server_name aws.caelonk.me;" in config
+    assert "listen 80 default_server;" in config
+    assert "return 404;" in config
+    assert "proxy_pass http://127.0.0.1:8000;" in config
+    assert "proxy_set_header X-Forwarded-Proto $scheme;" in config
+    assert "client_max_body_size 1m;" in config
+
+
+def test_aws_env_example_lists_keys_without_values():
+    lines = Path("deploy/aws/env.example").read_text().splitlines()
+    keys = {line.split("=", 1)[0] for line in lines if line and not line.startswith("#")}
+    assert keys == {"ENVIRONMENT", "DATABASE_URL", "SECRET_KEY", "ADMIN_PASSWORD", "SNAPSHOT_DIR"}
+    text = "\n".join(lines)
+    assert "sslmode=verify-full" in text
+    assert "sslrootcert=/etc/ssl/certs/rds-global-bundle.pem" in text

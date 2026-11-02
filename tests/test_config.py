@@ -15,6 +15,10 @@ PRIVATE_HASH = "pbkdf2_sha256$200000$c2FsdA==$ZGlnZXN0"
         ("postgres://u:p@db.internal:5432/railway", "postgresql+psycopg://u:p@db.internal:5432/railway"),
         ("postgresql+psycopg://u:p@h/d", "postgresql+psycopg://u:p@h/d"),
         ("sqlite:///./career_platform.db", "sqlite:///./career_platform.db"),
+        (
+            "postgresql://u:p@db.rds.amazonaws.com:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem",
+            "postgresql+psycopg://u:p@db.rds.amazonaws.com:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem",
+        ),
     ],
 )
 def test_normalize_database_url(raw, expected):
