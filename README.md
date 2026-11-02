@@ -58,8 +58,30 @@ project is deleted. To deploy a reviewed, pushed commit `<sha>` (rehearsed 2026-
 ssh career-platform-aws "sudo -u career-platform -H bash -c 'cd /opt/career-platform/app && git fetch -q origin && git -c advice.detachedHead=false checkout -q <sha> && UV_PROJECT_ENVIRONMENT=/opt/career-platform/.venv UV_CACHE_DIR=/opt/career-platform/.cache/uv UV_PYTHON_DOWNLOADS=never uv sync --locked --no-dev -q' && sudo systemd-run --quiet --wait --pipe --uid=career-platform -p EnvironmentFile=/etc/career-platform/env -p WorkingDirectory=/opt/career-platform/app /opt/career-platform/.venv/bin/alembic upgrade head && sudo systemctl restart career-platform"
 ```
 
-Then check `https://caelonk.me/health`. To roll back code, run the same command with the
-previous SHA. Never `source` the env file: `ADMIN_PASSWORD` contains `$` characters.
+Then check `https://caelonk.me/health`. Note the SHA running before you start
+(`ssh career-platform-aws 'sudo -u career-platform git -C /opt/career-platform/app rev-parse HEAD'`)
+and take a backup if the change adds a migration. The command doesn't reinstall
+`deploy/aws/*` files; if those change, copy them into place and run `systemctl
+daemon-reload` or `nginx -t && systemctl reload nginx` as in plan Task 5.
+
+- **If the command fails partway** (fetch, `uv sync` or `alembic`), the service is still
+  running the old code from memory but the new code is on disk, and the next restart or
+  reboot would load it. Before anything restarts, run the same command with the SHA that
+  was running before, or fix the failure and rerun with the new SHA.
+- **To roll back code with no migration in between,** run the same command with the
+  previous SHA.
+- **To roll back past a migration,** first downgrade while the new code is still checked
+  out (it's the only checkout that knows the new revision), then deploy the previous SHA:
+  run-as-app `alembic downgrade <revision the previous SHA expects>` (find it with
+  `alembic history`), then the deploy command with the previous SHA. If the migration
+  can't be reversed, restore the pre-deploy backup instead.
+
+"Run-as-app" means `sudo systemd-run --quiet --wait --pipe --uid=career-platform -p
+EnvironmentFile=/etc/career-platform/env -p WorkingDirectory=/opt/career-platform/app
+<command>`. Never `source` the env file: `ADMIN_PASSWORD` contains `$` characters. In
+production the app refuses to start unless `DATABASE_URL` is PostgreSQL and, for RDS, uses
+`sslmode=verify-full`, so a lost or weakened setting stops the service instead of serving
+an empty site.
 
 ### Backing up on AWS
 
@@ -277,16 +299,16 @@ procedure below dumps the Railway database; for AWS use "Backing up on AWS".
 
 | Item | Value |
 |---|---|
-| What is backed up | The Postgres database (`pg_dump -Fc`) and the app volume's `/data/snapshots` (8 generated files, rebuilt from the database on the next admin save; `profile.json` is the home page's fallback when the database is down). The app has no file uploads |
-| Latest backup | Database 2026-10-30 23:30 UTC (`career_platform-20261030-233003Z.dump`, 37,512 bytes); volume 2026-10-30 23:32 UTC (`career_platform-volume-20261030-233222Z.tar.gz`). First backup and restore test 2026-10-29 |
+| What is backed up | The Postgres database (`pg_dump -Fc`) and the snapshots folder (on AWS `/var/lib/career-platform/snapshots`, on Railway it was the volume's `/data/snapshots`; 8 generated files, rebuilt from the database on the next admin save; `profile.json` is the home page's fallback when the database is down). The app has no file uploads |
+| Latest backup | AWS: 2026-11-02 01:14 UTC (`career_platform-aws-20261102-011408Z.dump` and `career_platform-aws-volume-…`), restore-tested. Final Railway backup: 2026-11-02 01:03 UTC (`career_platform-final-20261102-010352Z.dump`), the one loaded into RDS at cutover. First backup and restore test 2026-10-29 |
 | Where the copies are | Laptop `~/Downloads/backups/` and a private Google Drive folder `career-platform-backups`. SHA-256 of each Drive copy was checked against the laptop file on 2026-11-01 |
 | Restore time | 9 seconds from starting an empty Postgres 18 container to the restore finishing (2026-10-30) |
 | Restore check | Row counts and a per-table content hash matched the live database for all 14 tables; the app served `/health` and `/` from the restored copy, with Railway not involved |
-| Frequency | Weekly, and before any admin edits in bulk, a new migration, or the AWS cutover |
-| Retention | The last 4 weekly dumps, plus the pre-migration dumps until the AWS move is verified |
+| Frequency | Weekly, and before any admin edits in bulk or a new migration (procedure: "Backing up on AWS") |
+| Retention | The last 4 weekly dumps, plus the final Railway dump until the course ends |
 | RPO (acceptable data loss) | 1 week. The site only changes when I edit it in `/admin`, so a week of edits can be redone by hand |
 | RTO (acceptable downtime) | 1 hour to restore into a new database and point the app at it |
-| Not covered | Railway's own backup settings haven't been checked. Backups are manual, so they only happen when I take them. After the AWS move, RDS automated backups (7 days) add to this, and a dump outside AWS is still kept |
+| Not covered | Railway's own backup settings haven't been checked. Backups are manual, so they only happen when I take them. RDS automated backups add only 1 day of point-in-time restore (the Free plan's maximum), so the weekly dumps outside AWS are what meet the RPO |
 
 ### Back to the Azure VM
 
@@ -378,8 +400,7 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 
 - AWS: RDS keeps only 1 day of automated backups (Free plan limit); the weekly manual
   dumps are what meet the 1-week RPO. The app connects to RDS as the master user rather
-  than a least-privilege role. The EC2 public IP is auto-assigned until the cutover adds an
-  Elastic IP. The "database down" 503 path wasn't tested on AWS.
+  than a least-privilege role. The "database down" 503 path wasn't tested on AWS.
 - No deliberate data change was made before the Railway copy (see Migration).
 - The 503 behavior was tested against a local Postgres, not by stopping Railway's
   database.
@@ -442,7 +463,7 @@ read 2026-11-01. A month is 730 hours.
 | Public IPv4, in use | $0.005 per hour | $3.65 |
 | RDS `db.t4g.micro` PostgreSQL Single-AZ | $0.016 per hour | $11.68 |
 | RDS storage, 20 GB gp3 | $0.115 per GB-month | $2.30 |
-| RDS backups, 7 days | Free up to the 20 GB provisioned; $0.095 per GB-month above it | $0.00 (the database dump is 37 KB) |
+| RDS backups, 1 day (Free plan maximum) | Free up to the 20 GB provisioned; $0.095 per GB-month above it | $0.00 (the database dump is 37 KB) |
 | Data transfer out to the internet | First 100 GB a month free, then $0.09 per GB | $0.00 at portfolio traffic |
 | EC2 to RDS | Free in the same zone (both in `us-east-1a`); $0.01 per GB across zones | $0.00 |
 | CPU credits | EC2 on Standard credits can't be billed for them. RDS `t4g` instances always run Unlimited, at $0.075 per vCPU-hour above baseline | $0.00 expected; only sustained high database CPU costs extra |
@@ -466,7 +487,8 @@ app/site_content.py education and profile links (not in the database)
 migrations/         Alembic migrations
 scripts/            copy_sqlite_to_postgres.py (used for the Railway move)
 tests/              pytest suite (routes, database, operations, end-to-end)
-deploy/             Azure VM files: systemd unit, Nginx site, runbook
+deploy/aws/         AWS EC2 files: systemd unit, Nginx sites, env template (live)
+deploy/             also Azure VM files (azure/, nginx/, systemd/), historical
 Dockerfile          Railway build
 docs/superpowers/   original spec and plans, with dated results
 docs/evidence/      exercise evidence and dated checks

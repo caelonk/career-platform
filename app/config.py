@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 _POSTGRES_PREFIXES = ("postgres://", "postgresql://")
 
@@ -56,6 +57,13 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be set to a private value when ENVIRONMENT=production or on Railway.")
         if self.admin_password == DEFAULT_ADMIN_PASSWORD_HASH:
             raise ValueError("ADMIN_PASSWORD must be set to your own password hash when ENVIRONMENT=production or on Railway.")
+        # A missing DATABASE_URL would otherwise fall back to an empty SQLite file and serve a
+        # blank site with /health still green.
+        url = make_url(self.database_url)
+        if not url.drivername.startswith("postgresql"):
+            raise ValueError("DATABASE_URL must point at PostgreSQL when ENVIRONMENT=production or on Railway.")
+        if (url.host or "").endswith(".rds.amazonaws.com") and url.query.get("sslmode") != "verify-full":
+            raise ValueError("DATABASE_URL for RDS must use sslmode=verify-full with the RDS CA bundle.")
         return self
 
 

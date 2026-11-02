@@ -17,7 +17,8 @@ def _cookie_header(monkeypatch, settings: Settings) -> str:
 
 def test_admin_cookie_is_secure_on_railway_without_environment_variable(monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "production")
-    settings = Settings(_env_file=None, environment="development", secret_key="a-private-value", admin_password=PRIVATE_HASH)
+    settings = Settings(_env_file=None, environment="development", secret_key="a-private-value", admin_password=PRIVATE_HASH,
+                        database_url="postgresql://u:p@postgres.railway.internal:5432/railway")
     assert "Secure" in _cookie_header(monkeypatch, settings)
 
 

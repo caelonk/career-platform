@@ -25,7 +25,7 @@
 - Region `us-east-1` only. Every AWS command passes `--profile isba-4775 --region us-east-1`. Never use root or AdministratorAccess.
 - Instance: `t3.small`, On-Demand, `CpuCredits=standard`, IMDSv2 required (`HttpTokens=required`), one public IPv4, Ubuntu 24.04 LTS amd64 (Canonical owner `099720109477`; latest at planning `ami-0d6dd9e8265d48906`, re-resolve at launch).
 - Instance disk: 20 GB gp3, encrypted, delete on termination.
-- RDS: PostgreSQL 18 (latest 18.x offered), `db.t4g.micro`, Single-AZ, 20 GB gp3 encrypted, no storage autoscaling, not publicly accessible, automated backups 7 days, deletion protection on.
+- RDS: PostgreSQL 18 (latest 18.x offered), `db.t4g.micro`, Single-AZ, 20 GB gp3 encrypted, no storage autoscaling, not publicly accessible, automated backups 7 days (**as built: 1 day**, the Free plan's maximum; see ledger ruling), deletion protection on.
 - No NAT gateway, load balancer, Secrets Manager, or extra paid services.
 - Railway keeps running and `caelonk.me` DNS stays on Railway until Task 9. Mail records (Zoho MX, SPF, DKIM) are never touched.
 - Work on branch `aws-migration`. Never push or merge to `main` during this plan (main auto-deploys Railway).
@@ -186,9 +186,9 @@ Nothing is created in this task.
 
 - [ ] **Step 1:** Create SG `career-platform-db` (ingress tcp 5432 with source group `WEB_SG`; revoke the default all-traffic egress rule). Create subnet group `career-platform-db-subnets` with the six default subnets.
 - [ ] **Step 2:** Generate the password locally into the session scratchpad: `python -c "import secrets; print(secrets.token_urlsafe(32), end='')" > db-password` (URL-safe characters only, so it works in a URL and meets RDS rules). Never `cat` it.
-- [ ] **Step 3:** Pick the newest `18.x` from `describe-db-engine-versions`. Create once with `create-db-instance`: `--db-instance-identifier career-platform-db --engine postgres --engine-version <18.x> --db-instance-class db.t4g.micro --allocated-storage 20 --storage-type gp3 --storage-encrypted --no-multi-az --availability-zone us-east-1a --no-publicly-accessible --db-subnet-group-name career-platform-db-subnets --vpc-security-group-ids <DB_SG> --master-username career_platform --master-user-password "$(cat db-password)" --db-name career_platform --backup-retention-period 7 --deletion-protection --no-enable-performance-insights --monitoring-interval 0 --copy-tags-to-snapshot --tags Key=Project,Value=career-platform`. No `--max-allocated-storage`, so autoscaling stays off.
+- [ ] **Step 3:** Pick the newest `18.x` from `describe-db-engine-versions`. Create once with `create-db-instance`: `--db-instance-identifier career-platform-db --engine postgres --engine-version <18.x> --db-instance-class db.t4g.micro --allocated-storage 20 --storage-type gp3 --storage-encrypted --no-multi-az --availability-zone us-east-1a --no-publicly-accessible --db-subnet-group-name career-platform-db-subnets --vpc-security-group-ids <DB_SG> --master-username career_platform --master-user-password "$(cat db-password)" --db-name career_platform --backup-retention-period 7 (as built: 1, Free plan maximum) --deletion-protection --no-enable-performance-insights --monitoring-interval 0 --copy-tags-to-snapshot --tags Key=Project,Value=career-platform`. No `--max-allocated-storage`, so autoscaling stays off.
 - [ ] **Step 4:** While it creates (5–10 minutes), start Task 5. Then `aws rds wait db-instance-available`.
-- [ ] **Step 5: Verify** in CLI and console: status `available`, class `db.t4g.micro`, `MultiAZ=false`, `PubliclyAccessible=false`, `StorageEncrypted=true`, 20 GB gp3, `MaxAllocatedStorage` absent, `BackupRetentionPeriod=7`, SG ingress is only 5432 from `WEB_SG`. Record the endpoint.
+- [ ] **Step 5: Verify** in CLI and console: status `available`, class `db.t4g.micro`, `MultiAZ=false`, `PubliclyAccessible=false`, `StorageEncrypted=true`, 20 GB gp3, `MaxAllocatedStorage` absent, `BackupRetentionPeriod=7` (as built: 1), SG ingress is only 5432 from `WEB_SG`. Record the endpoint.
 
 ---
 
