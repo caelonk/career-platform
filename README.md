@@ -353,10 +353,38 @@ and turn on database backups from the start.
 |---|---|---|---|---|
 | Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | The portal shows current cost only ($3.99 from use, 2026-10-21), no credit expiry date | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
 | Railway | Trial: 30 days or $5 of usage, whichever comes first; app service, Postgres service and volume | **$4.11 of $5 left** (dashboard, 2026-10-20) | **16 days left on 2026-10-20, so the trial ends about 2026-11-05** | Migrate to AWS after the midterm and before 2026-11-05; then delete the Railway project |
+| AWS (planned, not created yet) | EC2 `t3.small` (Standard CPU credits), 20 GB gp3 instance disk, one public IPv4, RDS PostgreSQL `db.t4g.micro` Single-AZ with 20 GB gp3. Estimate below | **About $34.41 a month (about $1.13 a day)** from AWS's public us-east-1 price list (files updated 2026-10-29), read 2026-11-01. Credits and budget: see the AWS estimate below | Credits run out at this rate after about 2.9 months per $100 | Terminate the instance, delete RDS with a final snapshot, delete security groups, subnet group, key pair and the `aws` DNS record when the course ends |
 | Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
 | Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | **Expires 2027-10-05** (Namecheap dashboard) | Renew before 2027-10-05, or let it lapse if the site moves to another name |
 | Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |
 | Google Analytics 4 | Property for `caelonk.me` | Free | No expiry | Keep |
+
+### AWS monthly estimate (gate G1 of the AWS plan)
+
+On-demand us-east-1 prices from AWS's public price list files
+(`pricing.us-east-1.amazonaws.com/offers/v1.0/aws/<service>/current/us-east-1/index.csv`),
+read 2026-11-01. A month is 730 hours.
+
+| Line | Price | Per month |
+|---|---|---|
+| EC2 `t3.small` Linux, On-Demand | $0.0208 per hour | $15.18 |
+| EC2 disk, 20 GB gp3 | $0.08 per GB-month | $1.60 |
+| Public IPv4, in use | $0.005 per hour | $3.65 |
+| RDS `db.t4g.micro` PostgreSQL Single-AZ | $0.016 per hour | $11.68 |
+| RDS storage, 20 GB gp3 | $0.115 per GB-month | $2.30 |
+| RDS backups, 7 days | Free up to the 20 GB provisioned; $0.095 per GB-month above it | $0.00 (the database dump is 37 KB) |
+| Data transfer out to the internet | First 100 GB a month free, then $0.09 per GB | $0.00 at portfolio traffic |
+| EC2 to RDS | Free in the same zone (both in `us-east-1a`); $0.01 per GB across zones | $0.00 |
+| CPU credits | EC2 on Standard credits can't be billed for them. RDS `t4g` instances always run Unlimited, at $0.075 per vCPU-hour above baseline | $0.00 expected; only sustained high database CPU costs extra |
+| **Total** | | **$34.41** |
+
+The EC2 instance, not RDS, is the largest line: the guide expected RDS to be. A `t3.micro`
+($0.0104 per hour, $7.59) would bring the total to about $26.82, at the cost of 1 GB of
+memory for Nginx and two Uvicorn workers. The plan keeps `t3.small`.
+
+At $34.41 a month, $100 of credits lasts about 88 days. Billing pages aren't readable by
+`isba-student`, so the credit balance, credit expiry and budget type are taken from the
+AWS console by the owner.
 
 ## Repository map
 
