@@ -15,6 +15,10 @@ PRIVATE_HASH = "pbkdf2_sha256$200000$c2FsdA==$ZGlnZXN0"
         ("postgres://u:p@db.internal:5432/railway", "postgresql+psycopg://u:p@db.internal:5432/railway"),
         ("postgresql+psycopg://u:p@h/d", "postgresql+psycopg://u:p@h/d"),
         ("sqlite:///./career_platform.db", "sqlite:///./career_platform.db"),
+        (
+            "postgresql://u:p@db.rds.amazonaws.com:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem",
+            "postgresql+psycopg://u:p@db.rds.amazonaws.com:5432/career_platform?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem",
+        ),
     ],
 )
 def test_normalize_database_url(raw, expected):
@@ -38,7 +42,8 @@ def test_production_rejects_default_admin_password_hash():
 
 
 def test_production_accepts_private_values():
-    settings = Settings(_env_file=None, environment="production", secret_key="a-private-value", admin_password=PRIVATE_HASH)
+    settings = Settings(_env_file=None, environment="production", secret_key="a-private-value", admin_password=PRIVATE_HASH,
+                        database_url="postgresql://u:p@postgres.railway.internal:5432/railway")
     assert settings.environment == "production"
 
 
@@ -61,10 +66,40 @@ def test_railway_enforces_guard_when_environment_is_not_set(monkeypatch):
 
 def test_railway_counts_as_production_with_private_values(monkeypatch):
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "production")
-    settings = Settings(_env_file=None, environment="development", secret_key="a-private-value", admin_password=PRIVATE_HASH)
+    settings = Settings(_env_file=None, environment="development", secret_key="a-private-value", admin_password=PRIVATE_HASH,
+                        database_url="postgresql://u:p@postgres.railway.internal:5432/railway")
     assert settings.is_production is True
 
 
 def test_local_development_is_not_production(monkeypatch):
     monkeypatch.delenv("RAILWAY_ENVIRONMENT_NAME", raising=False)
     assert Settings(_env_file=None, environment="development").is_production is False
+
+
+RDS_URL = "postgresql://u:p@career-platform-db.abc123.us-east-1.rds.amazonaws.com:5432/career_platform"
+RDS_CA = "sslrootcert=/etc/ssl/certs/rds-global-bundle.pem"
+
+
+def test_production_rejects_sqlite_database_url():
+    # A lost DATABASE_URL must stop the app, not serve an empty SQLite site.
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
+        Settings(_env_file=None, environment="production", secret_key="a-private-value", admin_password=PRIVATE_HASH)
+
+
+@pytest.mark.parametrize("query", ["", "?sslmode=require", "?sslmode=prefer&" + RDS_CA])
+def test_production_rejects_rds_without_verified_tls(query):
+    with pytest.raises(ValidationError, match="verify-full"):
+        Settings(_env_file=None, environment="production", secret_key="a-private-value",
+                 admin_password=PRIVATE_HASH, database_url=RDS_URL + query)
+
+
+def test_production_accepts_rds_with_verified_tls():
+    settings = Settings(_env_file=None, environment="production", secret_key="a-private-value",
+                        admin_password=PRIVATE_HASH, database_url=RDS_URL + "?sslmode=verify-full&" + RDS_CA)
+    assert settings.database_url.startswith("postgresql+psycopg://")
+
+
+def test_production_accepts_railway_private_postgres_url():
+    settings = Settings(_env_file=None, environment="production", secret_key="a-private-value",
+                        admin_password=PRIVATE_HASH, database_url="postgresql://u:p@postgres.railway.internal:5432/railway")
+    assert settings.is_production is True

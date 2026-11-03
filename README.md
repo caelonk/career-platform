@@ -2,8 +2,8 @@
 
 My personal career site at **<https://caelonk.me>**: profile, education, contact details,
 a downloadable resume, and project case studies read from a database on every request.
-It began in Codespaces, ran on an Azure Linux VM, and now runs on Railway with
-PostgreSQL. It is the starting point for the career platform built through the semester.
+It began in Codespaces, ran on an Azure Linux VM and then Railway, and since 2026-11-02
+runs on AWS: an EC2 instance with a private RDS PostgreSQL database. It is the starting point for the career platform built through the semester.
 
 - Project 1 submission index: [`docs/project-1-submission.md`](docs/project-1-submission.md)
 - Original spec: [`docs/superpowers/specs/2026-09-15-personal-career-platform-design.md`](docs/superpowers/specs/2026-09-15-personal-career-platform-design.md)
@@ -18,7 +18,7 @@ PostgreSQL. It is the starting point for the career platform built through the s
 | `/resume.pdf` | Resume | `app/static/resume/resume.pdf` |
 | `/privacy` | What Google Analytics collects and how to opt out | Template |
 | `/admin` | Log in, create and edit projects | Database; password hash in `ADMIN_PASSWORD` |
-| `/health` | `{"status":"ok"}` for Railway's health check | Code only (doesn't touch the database) |
+| `/health` | `{"status":"ok"}` for health checks | Code only (doesn't touch the database) |
 
 **When the database is down,** the home page keeps the last profile it read, says
 "Projects temporarily unavailable." and returns **HTTP 503**. Project pages return 503.
@@ -26,7 +26,89 @@ The next request after the database recovers reads it again, with no restart. A 
 request returns 200. Evidence: [`docs/evidence/database-outage-check.md`](docs/evidence/database-outage-check.md).
 An empty projects table shows "No projects are published right now."
 
-## How it runs now (Railway)
+## How it runs now (AWS)
+
+`caelonk.me` moved from Railway to AWS on **2026-11-02 at 01:05 UTC** (plan Task 9).
+
+- **Decision:** I chose EC2 with Single-AZ RDS over EC2 with local PostgreSQL because I
+  want AWS to run the database (backups, patching), and I accept about $20 a month more and
+  one more service to manage.
+- **Request path:** Cloudflare DNS (A record `caelonk.me` → Elastic IP `44.217.5.57`, DNS
+  only, so Cloudflare doesn't proxy) → EC2 `career-platform-web` (`t3.small`, Ubuntu 24.04,
+  `us-east-1a`) → Nginx ends HTTPS with Let's Encrypt → Uvicorn on `127.0.0.1:8000`, run by
+  systemd as the non-root user `career-platform` → RDS PostgreSQL 18.6
+  (`career-platform-db`, `db.t4g.micro`, not public) over the default VPC with verified
+  TLS. `www.caelonk.me` is still a Cloudflare redirect to `https://caelonk.me`, and
+  `aws.caelonk.me` points at the same instance.
+- **Where data persists:** RDS (encrypted gp3, 1 day of automated backups) and
+  `/var/lib/career-platform/snapshots` on the instance's encrypted disk. Secrets live in
+  `/etc/career-platform/env` (`640 root:career-platform`), never in Git.
+- **Admin access:** SSH with a key, only from my laptop's IP. RDS is reachable only from
+  the instance.
+- **Files:** [`deploy/aws/`](deploy/aws/). **Plan:** [`docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md).
+  **Evidence:** [`docs/evidence/aws-verification-2026-11.md`](docs/evidence/aws-verification-2026-11.md).
+- **Cost:** about $34.41 a month from $120 of credits (see Costs below).
+
+### Updating the site on AWS
+
+Merging to `main` no longer changes the live site; it only redeploys Railway until that
+project is deleted. To deploy a reviewed, pushed commit `<sha>` (rehearsed 2026-11-02):
+
+```bash
+ssh career-platform-aws "sudo -u career-platform -H bash -c 'cd /opt/career-platform/app && git fetch -q origin && git -c advice.detachedHead=false checkout -q <sha> && UV_PROJECT_ENVIRONMENT=/opt/career-platform/.venv UV_CACHE_DIR=/opt/career-platform/.cache/uv UV_PYTHON_DOWNLOADS=never uv sync --locked --no-dev -q' && sudo systemd-run --quiet --wait --pipe --uid=career-platform -p EnvironmentFile=/etc/career-platform/env -p WorkingDirectory=/opt/career-platform/app /opt/career-platform/.venv/bin/alembic upgrade head && sudo systemctl restart career-platform"
+```
+
+Then check `https://caelonk.me/health`. Note the SHA running before you start
+(`ssh career-platform-aws 'sudo -u career-platform git -C /opt/career-platform/app rev-parse HEAD'`)
+and take a backup if the change adds a migration. The command doesn't reinstall
+`deploy/aws/*` files; if those change, copy them into place and run `systemctl
+daemon-reload` or `nginx -t && systemctl reload nginx` as in plan Task 5.
+
+- **If the command fails partway** (fetch, `uv sync` or `alembic`), the service is still
+  running the old code from memory but the new code is on disk, and the next restart or
+  reboot would load it. Before anything restarts, run the same command with the SHA that
+  was running before, or fix the failure and rerun with the new SHA.
+- **To roll back code with no migration in between,** run the same command with the
+  previous SHA.
+- **To roll back past a migration,** first downgrade while the new code is still checked
+  out (it's the only checkout that knows the new revision), then deploy the previous SHA:
+  run-as-app `alembic downgrade <revision the previous SHA expects>` (find it with
+  `alembic history`), then the deploy command with the previous SHA. If the migration
+  can't be reversed, restore the pre-deploy backup instead.
+
+"Run-as-app" means `sudo systemd-run --quiet --wait --pipe --uid=career-platform -p
+EnvironmentFile=/etc/career-platform/env -p WorkingDirectory=/opt/career-platform/app
+<command>`. Never `source` the env file: `ADMIN_PASSWORD` contains `$` characters. In
+production the app refuses to start unless `DATABASE_URL` is PostgreSQL and, for RDS, uses
+`sslmode=verify-full`, so a lost or weakened setting stops the service instead of serving
+an empty site.
+
+### Backing up on AWS
+
+RDS isn't reachable from the laptop, so the dump runs on the instance and is copied down
+(rehearsed 2026-11-02: it restored with every table identical to the final Railway backup):
+
+```bash
+D=~/Downloads/backups; F="$D/career_platform-aws-$(date -u +%Y%m%d-%H%M%SZ).dump"
+ssh career-platform-aws 'sudo bash -c '"'"'pg_dump -Fc --no-owner --no-privileges -d "$(grep ^DATABASE_URL= /etc/career-platform/env | cut -d= -f2-)" -f /tmp/cp.dump && chmod 644 /tmp/cp.dump && sha256sum /tmp/cp.dump'"'"'' | cut -c1-64 > "$D/remote.sha"
+scp -q career-platform-aws:/tmp/cp.dump "$F" && ssh career-platform-aws 'sudo rm -f /tmp/cp.dump'
+[ "$(cat "$D/remote.sha")" = "$(sha256sum "$F" | cut -c1-64)" ] && echo ok || echo MISMATCH; rm -f "$D/remote.sha"
+ssh career-platform-aws 'sudo tar -czf - -C /var/lib/career-platform snapshots' > "$D/career_platform-aws-volume-$(date -u +%Y%m%d-%H%M%SZ).tar.gz"
+```
+
+Copy both files to the Google Drive folder `career-platform-backups`. Schedule, retention,
+RPO and RTO are in "Backup record" below.
+
+### Back to Railway (only until its trial ends, about 2026-11-05)
+
+Railway still runs, unedited, with the data as of the final backup (2026-11-02 01:03 UTC).
+To go back: in Cloudflare, change the `caelonk.me` record back to **CNAME
+`l29it1kr.up.railway.app`, DNS only** (saved in [`docs/evidence/dns-before-aws.md`](docs/evidence/dns-before-aws.md)).
+If anything was edited in `/admin` on AWS since the cutover, dump RDS first and re-enter
+those changes on Railway; DNS doesn't move data. After the trial ends this rollback no
+longer exists; restore from a dump into a new database instead.
+
+## How it ran before (Railway, 2026-10-10 to 2026-11-02)
 
 ```mermaid
 flowchart LR
@@ -138,7 +220,7 @@ docker compose --profile postgres up -d postgres
 TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/career_platform python -m pytest -q
 ```
 
-## Production settings (Railway)
+## Production settings (Railway, historical)
 
 | Setting | Where it lives |
 |---|---|
@@ -148,7 +230,10 @@ TEST_POSTGRES_URL=postgresql://career_platform:career_platform@localhost:5432/ca
 | Pre-deploy `alembic upgrade head`, health check `/health` | Railway service settings (Railway ignores `railway.json` for this service) |
 | Custom domain `caelonk.me` | Railway service networking, plus Cloudflare DNS |
 
-## Updating the site
+## Updating the site (Railway era)
+
+For AWS, see "Updating the site on AWS" above.
+
 
 1. Work on a branch. Run `python -m pytest -q` and check the change locally.
 2. Open a pull request and review the diff.
@@ -162,7 +247,10 @@ Example with evidence: [`docs/evidence/reviewed-change.md`](docs/evidence/review
 Later changes followed the same path: admin slug validation (PR #8) and the Featured
 checkbox (PR #9), both deployed on 2026-10-24.
 
-## Rollback
+## Rollback (Railway era)
+
+For AWS, see "Updating the site on AWS" and "Back to Railway" above. The backup
+procedure below dumps the Railway database; for AWS use "Backing up on AWS".
 
 ### Bad code
 
@@ -175,14 +263,52 @@ checkbox (PR #9), both deployed on 2026-10-24.
 
 ### Bad data or a bad migration
 
-- **Before** a change that edits or deletes data, or a new migration, take a dump. The
-  laptop has no `pg_dump`, so run it from the Postgres image with the public URL injected
-  by Railway:
-  `railway run --service Postgres -- docker run --rm -e DATABASE_PUBLIC_URL postgres:18 sh -c 'pg_dump --no-owner "$DATABASE_PUBLIC_URL"' > backup-YYYYMMDD.sql`
-  (keep the file outside the repository; it contains personal data). *Not yet rehearsed.*
+- **Before** a change that edits or deletes data, or a new migration, take a dump.
+  Railway's Postgres has no public address (no `DATABASE_PUBLIC_URL`) and the laptop has
+  no `pg_dump`, so run `pg_dump` inside the Postgres container over `railway ssh` and
+  carry the file down as base64 (Git Bash). Keep it outside the repository; it contains
+  personal data.
+
+  ```bash
+  D=~/Downloads/backups; mkdir -p "$D"; F="$D/career_platform-$(date -u +%Y%m%d-%H%M%SZ).dump"
+  railway ssh --service Postgres -- "pg_dump -U \"\$PGUSER\" -d \"\$PGDATABASE\" -Fc --no-owner --no-privileges -f /tmp/cp.dump && sha256sum /tmp/cp.dump >&2 && base64 -w0 /tmp/cp.dump; rm -f /tmp/cp.dump" 2>"$D/ssh.log" | base64 -d > "$F"
+  grep -E '^[0-9a-f]{64}' "$D/ssh.log"; sha256sum "$F"   # the two hashes must match
+  ```
+
+  The container's `/tmp` is not the database volume, and the file is deleted after the copy.
+- **Check a dump restores** (Docker Desktop running). Use the same major version as
+  Railway (18):
+
+  ```bash
+  docker run -d --name cp-restore-test -e POSTGRES_USER=career_platform -e POSTGRES_PASSWORD=restoretest -e POSTGRES_DB=career_platform postgres:18
+  until docker exec cp-restore-test pg_isready -h 127.0.0.1 -U career_platform >/dev/null 2>&1; do sleep 2; done   # TCP only answers once setup has finished
+  MSYS_NO_PATHCONV=1 docker cp "$(cygpath -w "$F")" cp-restore-test:/tmp/backup.dump
+  MSYS_NO_PATHCONV=1 docker exec cp-restore-test pg_restore -U career_platform -d career_platform --exit-on-error --no-owner --no-privileges /tmp/backup.dump
+  ```
+
+  Then compare row counts per table with the live database (`railway ssh --service
+  Postgres -- psql ...`), and remove the container with `docker rm -f cp-restore-test`.
+  Rehearsed 2026-10-29: the restore matched the live database in all 14 tables, by row
+  count and by a per-table content hash, and the app served `/health` and `/` from it.
 - **A wrong admin edit:** fix it again in `/admin`; every change is a normal row update.
 - **A bad migration:** write a new migration that reverses it, or restore the dump into
-  an empty database. The current single migration has no earlier state to go back to.
+  an empty database with `pg_restore` as above. The current single migration has no
+  earlier state to go back to.
+
+### Backup record
+
+| Item | Value |
+|---|---|
+| What is backed up | The Postgres database (`pg_dump -Fc`) and the snapshots folder (on AWS `/var/lib/career-platform/snapshots`, on Railway it was the volume's `/data/snapshots`; 8 generated files, rebuilt from the database on the next admin save; `profile.json` is the home page's fallback when the database is down). The app has no file uploads |
+| Latest backup | AWS: 2026-11-02 01:14 UTC (`career_platform-aws-20261102-011408Z.dump` and `career_platform-aws-volume-…`), restore-tested. Final Railway backup: 2026-11-02 01:03 UTC (`career_platform-final-20261102-010352Z.dump`), the one loaded into RDS at cutover. First backup and restore test 2026-10-29 |
+| Where the copies are | Laptop `~/Downloads/backups/` and a private Google Drive folder `career-platform-backups`. SHA-256 of each Drive copy was checked against the laptop file on 2026-11-01 |
+| Restore time | 9 seconds from starting an empty Postgres 18 container to the restore finishing (2026-10-30) |
+| Restore check | Row counts and a per-table content hash matched the live database for all 14 tables; the app served `/health` and `/` from the restored copy, with Railway not involved |
+| Frequency | Weekly, and before any admin edits in bulk or a new migration (procedure: "Backing up on AWS") |
+| Retention | The last 4 weekly dumps, plus the final Railway dump until the course ends |
+| RPO (acceptable data loss) | 1 week. The site only changes when I edit it in `/admin`, so a week of edits can be redone by hand |
+| RTO (acceptable downtime) | 1 hour to restore into a new database and point the app at it |
+| Not covered | Railway's own backup settings haven't been checked. Backups are manual, so they only happen when I take them. RDS automated backups add only 1 day of point-in-time restore (the Free plan's maximum), so the weekly dumps outside AWS are what meet the RPO |
 
 ### Back to the Azure VM
 
@@ -272,11 +398,14 @@ VM's certificate expires 2027-01-04 and will only renew once DNS points back at 
 
 ## Limitations
 
+- AWS: RDS keeps only 1 day of automated backups (Free plan limit); the weekly manual
+  dumps are what meet the 1-week RPO. The app connects to RDS as the master user rather
+  than a least-privilege role. The "database down" 503 path wasn't tested on AWS.
 - No deliberate data change was made before the Railway copy (see Migration).
 - The 503 behavior was tested against a local Postgres, not by stopping Railway's
   database.
-- Railway Postgres backup settings haven't been checked, and the dump procedure above
-  hasn't been rehearsed.
+- Railway Postgres backup settings haven't been checked. The manual dump procedure above
+  was rehearsed on 2026-10-29, but it only runs when I run it.
 - The `/data/snapshots` volume contents were never listed.
 - `/health` doesn't query the database, so Railway's health check stays green when the
   app can't reach it (seen during the credential rotation). The home page's 503 shows it.
@@ -315,10 +444,40 @@ and turn on database backups from the start.
 |---|---|---|---|---|
 | Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | The portal shows current cost only ($3.99 from use, 2026-10-21), no credit expiry date | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
 | Railway | Trial: 30 days or $5 of usage, whichever comes first; app service, Postgres service and volume | **$4.11 of $5 left** (dashboard, 2026-10-20) | **16 days left on 2026-10-20, so the trial ends about 2026-11-05** | Migrate to AWS after the midterm and before 2026-11-05; then delete the Railway project |
+| AWS (live since 2026-11-02) | EC2 `t3.small` (Standard CPU credits), 20 GB gp3 instance disk, one public IPv4, RDS PostgreSQL `db.t4g.micro` Single-AZ with 20 GB gp3. Estimate below | **About $34.41 a month (about $1.13 a day)** from AWS's public us-east-1 price list (files updated 2026-10-29), read 2026-11-01. **$120 of credits**, zero-spend budget (owner, 2026-11-01) | **Credits expire 2027-04-29**; at $34.41 a month they run out first, about 2027-02-15 | Terminate the instance, delete RDS with a final snapshot, delete security groups, subnet group, key pair and the `aws` DNS record when the course ends |
 | Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
 | Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | **Expires 2027-10-05** (Namecheap dashboard) | Renew before 2027-10-05, or let it lapse if the site moves to another name |
 | Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |
 | Google Analytics 4 | Property for `caelonk.me` | Free | No expiry | Keep |
+
+### AWS monthly estimate (gate G1 of the AWS plan)
+
+On-demand us-east-1 prices from AWS's public price list files
+(`pricing.us-east-1.amazonaws.com/offers/v1.0/aws/<service>/current/us-east-1/index.csv`),
+read 2026-11-01. A month is 730 hours.
+
+| Line | Price | Per month |
+|---|---|---|
+| EC2 `t3.small` Linux, On-Demand | $0.0208 per hour | $15.18 |
+| EC2 disk, 20 GB gp3 | $0.08 per GB-month | $1.60 |
+| Public IPv4, in use | $0.005 per hour | $3.65 |
+| RDS `db.t4g.micro` PostgreSQL Single-AZ | $0.016 per hour | $11.68 |
+| RDS storage, 20 GB gp3 | $0.115 per GB-month | $2.30 |
+| RDS backups, 1 day (Free plan maximum) | Free up to the 20 GB provisioned; $0.095 per GB-month above it | $0.00 (the database dump is 37 KB) |
+| Data transfer out to the internet | First 100 GB a month free, then $0.09 per GB | $0.00 at portfolio traffic |
+| EC2 to RDS | Free in the same zone (both in `us-east-1a`); $0.01 per GB across zones | $0.00 |
+| CPU credits | EC2 on Standard credits can't be billed for them. RDS `t4g` instances always run Unlimited, at $0.075 per vCPU-hour above baseline | $0.00 expected; only sustained high database CPU costs extra |
+| **Total** | | **$34.41** |
+
+The EC2 instance, not RDS, is the largest line: the guide expected RDS to be. A `t3.micro`
+($0.0104 per hour, $7.59) would bring the total to about $26.82, at the cost of 1 GB of
+memory for Nginx and two Uvicorn workers. The plan keeps `t3.small`.
+
+Credits (from the owner's console, 2026-11-01, since `isba-student` can't read billing):
+$120, expiring 2027-04-29 (180 days). At $34.41 a month they last about 106 days, so they
+run out around 2027-02-15, before they expire. The zero-spend budget emails the owner the
+first time a charge isn't covered by credits. Delete the AWS resources before February, or
+switch to `t3.micro` to stretch the credits to about 2027-03-17.
 
 ## Repository map
 
@@ -328,7 +487,8 @@ app/site_content.py education and profile links (not in the database)
 migrations/         Alembic migrations
 scripts/            copy_sqlite_to_postgres.py (used for the Railway move)
 tests/              pytest suite (routes, database, operations, end-to-end)
-deploy/             Azure VM files: systemd unit, Nginx site, runbook
+deploy/aws/         AWS EC2 files: systemd unit, Nginx sites, env template (live)
+deploy/             also Azure VM files (azure/, nginx/, systemd/), historical
 Dockerfile          Railway build
 docs/superpowers/   original spec and plans, with dated results
 docs/evidence/      exercise evidence and dated checks

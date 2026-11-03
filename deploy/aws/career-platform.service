@@ -1,0 +1,28 @@
+# AWS EC2: install at /etc/systemd/system/career-platform.service.
+# Plan: docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md (Task 5).
+# Uvicorn listens only on 127.0.0.1; Nginx is the public front door and the only proxy
+# trusted for X-Forwarded-Proto, so url_for() links come out as https://.
+[Unit]
+Description=career-platform (FastAPI on Uvicorn, behind Nginx)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=career-platform
+Group=career-platform
+EnvironmentFile=/etc/career-platform/env
+WorkingDirectory=/opt/career-platform/app
+ExecStart=/opt/career-platform/.venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=3
+
+# The app writes only snapshots; everything else is read-only to it.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/career-platform
+
+[Install]
+WantedBy=multi-user.target
