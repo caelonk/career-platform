@@ -64,3 +64,11 @@ Railway throughout.
 | AWS procedures | Backup from the instance (dump + volume) restored locally with every table identical to the final Railway backup; deploy command rerun with the same commit | ✅ |
 
 Railway still runs, unedited, as a rollback until its trial ends (about 2026-11-05).
+
+## Final-review fix deployed, 2026-11-03
+
+Commit `04ff1db` (production refuses to start unless `DATABASE_URL` is PostgreSQL, and
+`sslmode=verify-full` for RDS) was deployed with the README procedure plus a settings check
+before the restart: the live env file loaded under the new rule (`production: True`), the
+service restarted on `04ff1db`, and `https://caelonk.me/` and `/health` returned 200 with all
+5 published projects, the resume and the login page.
