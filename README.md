@@ -30,6 +30,59 @@ An empty projects table shows "No projects are published right now."
 
 `caelonk.me` moved from Railway to AWS on **2026-11-02 at 01:05 UTC** (plan Task 9).
 
+```mermaid
+flowchart LR
+  B["Visitor's browser"]
+  L["My laptop<br/>SSH key ~/.ssh/career_platform_aws<br/>AWS CLI as isba-student"]
+  GD[("Google Drive<br/>career-platform-backups<br/>(copied by hand)")]
+
+  subgraph CF["Cloudflare (DNS host for caelonk.me)"]
+    DNS[("Authoritative DNS<br/>@ A → 44.217.5.57 (DNS only, not proxied)<br/>aws A → 44.217.5.57 (DNS only)<br/>www A placeholder (proxied)<br/>MX, SPF, DKIM, DMARC → Zoho")]
+    EDGE["Cloudflare edge<br/>www → 301 https://caelonk.me"]
+  end
+
+  subgraph AWS["AWS account, us-east-1"]
+    subgraph VPC["Default VPC 172.31.0.0/16"]
+      subgraph WEBSG["Security group career-platform-web<br/>in: 443 + 80 from anywhere, 22 from my laptop /32 only"]
+        subgraph EC2["EC2 career-platform-web · t3.small · us-east-1a · Elastic IP 44.217.5.57"]
+          NGX["Nginx :443 / :80<br/>HTTPS ends here<br/>Let's Encrypt certs, certbot.timer renews<br/>:80 → 301 https"]
+          APP["Uvicorn 127.0.0.1:8000, 2 workers<br/>systemd, user career-platform<br/>env /etc/career-platform/env"]
+          DISK[("Encrypted gp3 disk, 20 GB<br/>/var/lib/career-platform/snapshots")]
+        end
+      end
+      subgraph DBSG["Security group career-platform-db<br/>in: 5432 from career-platform-web only · not public"]
+        RDS[("RDS career-platform-db<br/>PostgreSQL 18.6 · db.t4g.micro · Single-AZ<br/>20 GB gp3, encrypted<br/>automated backups: 1 day")]
+      end
+    end
+  end
+
+  GH["GitHub<br/>caelonk/career-platform"]
+  LE["Let's Encrypt"]
+  GA["Google Analytics 4 G-6J1F90ST16<br/>+ googletagmanager.com"]
+  RW["Railway (rollback only)<br/>serves no traffic; trial ends ~2026-11-05"]
+
+  B -- "1. DNS lookup, UDP 53" --> DNS
+  B -- "2. HTTPS, TCP 443 (HTTP 80 → 301)" --> NGX
+  B -. "www.caelonk.me, TCP 80/443" .-> EDGE
+  NGX -- "3. plain HTTP on localhost + X-Forwarded-Proto" --> APP
+  APP -- "4. SQL, TCP 5432, TLS verify-full" --> RDS
+  APP --- DISK
+  B -- "5. HTTPS 443, gtag.js and events" --> GA
+  L -- "SSH 22: admin, deploy, backups" --> EC2
+  EC2 -- "deploy: git fetch over HTTPS 443" --> GH
+  LE -- "renewal check, HTTP 80" --> NGX
+  EC2 -. "manual backup: pg_dump on EC2, then scp to laptop" .-> L
+  L -. "manual copy" .-> GD
+  RW ~~~ CF
+```
+
+How to read it: solid arrows are live paths, dotted arrows are manual steps or
+redirects. HTTPS ends at Nginx; traffic after it stays inside the instance (localhost) or
+the VPC (TLS to RDS). Data persists in RDS and on the instance's disk; backups leave AWS
+only when I run the dump and copy it. Not finished: backups off AWS are manual (no
+schedule runs them); the app connects as the RDS master user, not a least-privilege role;
+Railway is still running as a rollback until its trial ends, with no DNS record pointing at it.
+
 - **Decision:** I chose EC2 with Single-AZ RDS over EC2 with local PostgreSQL because I
   want AWS to run the database (backups, patching), and I accept about $20 a month more and
   one more service to manage.
