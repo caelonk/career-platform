@@ -30,8 +30,61 @@ An empty projects table shows "No projects are published right now."
 
 `caelonk.me` moved from Railway to AWS on **2026-11-02 at 01:05 UTC** (plan Task 9).
 
+```mermaid
+flowchart LR
+  B["Visitor's browser"]
+  L["My laptop<br/>SSH key ~/.ssh/career_platform_aws<br/>AWS CLI as isba-student"]
+  GD[("Google Drive<br/>career-platform-backups<br/>(copied by hand)")]
+
+  subgraph CF["Cloudflare (DNS host for caelonk.me)"]
+    DNS[("Authoritative DNS<br/>@ A → 44.217.5.57 (DNS only, not proxied)<br/>aws A → 44.217.5.57 (DNS only)<br/>www A placeholder (proxied)<br/>MX, SPF, DKIM, DMARC → Zoho")]
+    EDGE["Cloudflare edge<br/>www → 301 https://caelonk.me"]
+  end
+
+  subgraph AWS["AWS account, us-east-1"]
+    subgraph VPC["Default VPC 172.31.0.0/16"]
+      subgraph WEBSG["Security group career-platform-web<br/>in: 443 + 80 from anywhere, 22 from my laptop /32 only"]
+        subgraph EC2["EC2 career-platform-web · t3.small · us-east-1a · Elastic IP 44.217.5.57"]
+          NGX["Nginx :443 / :80<br/>HTTPS ends here<br/>Let's Encrypt certs, certbot.timer renews<br/>:80 → 301 https"]
+          APP["Uvicorn 127.0.0.1:8000, 2 workers<br/>systemd, user career-platform<br/>env /etc/career-platform/env"]
+          DISK[("Encrypted gp3 disk, 20 GB<br/>/var/lib/career-platform/snapshots")]
+        end
+      end
+      subgraph DBSG["Security group career-platform-db<br/>in: 5432 from career-platform-web only · not public"]
+        RDS[("RDS career-platform-db<br/>PostgreSQL 18.6 · db.t4g.micro · Single-AZ<br/>20 GB gp3, encrypted<br/>automated backups: 1 day")]
+      end
+    end
+  end
+
+  GH["GitHub<br/>caelonk/career-platform"]
+  LE["Let's Encrypt"]
+  GA["Google Analytics 4 G-6J1F90ST16<br/>+ googletagmanager.com"]
+  RW["Railway (rollback only)<br/>serves no traffic; trial ends ~2026-11-05"]
+
+  B -- "1. DNS lookup, UDP 53" --> DNS
+  B -- "2. HTTPS, TCP 443 (HTTP 80 → 301)" --> NGX
+  B -. "www.caelonk.me, TCP 80/443" .-> EDGE
+  NGX -- "3. plain HTTP on localhost + X-Forwarded-Proto" --> APP
+  APP -- "4. SQL, TCP 5432, TLS verify-full" --> RDS
+  APP --- DISK
+  B -- "5. HTTPS 443, gtag.js and events" --> GA
+  L -- "SSH 22: admin, deploy, backups" --> EC2
+  EC2 -- "deploy: git fetch over HTTPS 443" --> GH
+  LE -- "renewal check, HTTP 80" --> NGX
+  EC2 -. "manual backup: pg_dump on EC2, then scp to laptop" .-> L
+  L -. "manual copy" .-> GD
+  RW ~~~ CF
+```
+
+How to read it: solid arrows are live paths, dotted arrows are manual steps or
+redirects. HTTPS ends at Nginx; traffic after it stays inside the instance (localhost) or
+the VPC (TLS to RDS). Data persists in RDS and on the instance's disk; backups leave AWS
+only when I run the dump and copy it. Not finished: backups off AWS are manual (no
+schedule runs them); the app connects as the RDS master user, not a least-privilege role;
+Railway is still running as a rollback until its trial ends, with no DNS record pointing at it.
+
 - **Decision:** I chose EC2 with Single-AZ RDS over EC2 with local PostgreSQL because I
-  want AWS to run the database (backups, patching), and I accept about $20 a month more and
+  want AWS to run the database (backups, patching), and I accept about $14 a month more and
   one more service to manage.
 - **Request path:** Cloudflare DNS (A record `caelonk.me` → Elastic IP `44.217.5.57`, DNS
   only, so Cloudflare doesn't proxy) → EC2 `career-platform-web` (`t3.small`, Ubuntu 24.04,
@@ -47,7 +100,7 @@ An empty projects table shows "No projects are published right now."
   the instance.
 - **Files:** [`deploy/aws/`](deploy/aws/). **Plan:** [`docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md`](docs/superpowers/plans/2026-11-01-aws-ec2-rds-migration.md).
   **Evidence:** [`docs/evidence/aws-verification-2026-11.md`](docs/evidence/aws-verification-2026-11.md).
-- **Cost:** about $34.41 a month from $120 of credits (see Costs below).
+- **Cost:** about $34.41 a month from $140 of credits; $8.45 used by 2026-11-09 (see Costs below).
 
 ### Updating the site on AWS
 
@@ -444,7 +497,7 @@ and turn on database backups from the start.
 |---|---|---|---|---|
 | Azure for Students | VM compute while running; OS disk and static public IP even when stopped | Budget `budget-isba4775`: **$3.99 of $15** spent in the current period (read 2026-10-21). Auto-shutdown is off, so compute bills while the VM runs | The portal shows current cost only ($3.99 from use, 2026-10-21), no credit expiry date | Keep running until the instructor's cleanup directions; then delete `rg-career-platform` (VM, disk, IP, NSG) |
 | Railway | Trial: 30 days or $5 of usage, whichever comes first; app service, Postgres service and volume | **$4.11 of $5 left** (dashboard, 2026-10-20) | **16 days left on 2026-10-20, so the trial ends about 2026-11-05** | Migrate to AWS after the midterm and before 2026-11-05; then delete the Railway project |
-| AWS (live since 2026-11-02) | EC2 `t3.small` (Standard CPU credits), 20 GB gp3 instance disk, one public IPv4, RDS PostgreSQL `db.t4g.micro` Single-AZ with 20 GB gp3. Estimate below | **About $34.41 a month (about $1.13 a day)** from AWS's public us-east-1 price list (files updated 2026-10-29), read 2026-11-01. **$120 of credits**, zero-spend budget (owner, 2026-11-01) | **Credits expire 2027-04-29**; at $34.41 a month they run out first, about 2027-02-15 | Terminate the instance, delete RDS with a final snapshot, delete security groups, subnet group, key pair and the `aws` DNS record when the course ends |
+| AWS (live since 2026-11-02) | EC2 `t3.small` (Standard CPU credits), 20 GB gp3 instance disk, one public IPv4, RDS PostgreSQL `db.t4g.micro` Single-AZ with 20 GB gp3. Estimate below | **About $34.41 a month (about $1.13 a day)** from AWS's public us-east-1 price list (files updated 2026-10-29), read 2026-11-01. **$140 of credits** ($131.55 left after an estimated $8.45 used, Credits page 2026-11-09), zero-spend budget (owner, 2026-11-01) | **Credits expire 2027-10-29**; at $34.41 a month they run out first, about 2027-03-05 | Terminate the instance, delete RDS with a final snapshot, delete security groups, subnet group, key pair and the `aws` DNS record when the course ends |
 | Cloudflare | DNS for `caelonk.me` | Free plan | No expiry | Keep |
 | Namecheap | Domain `caelonk.me`, registered 2026-10-05 | Not recorded | **Expires 2027-10-05** (Namecheap dashboard) | Renew before 2027-10-05, or let it lapse if the site moves to another name |
 | Zoho Mail | One mailbox, `caelon@caelonk.me` | Forever Free plan | No expiry | Keep |
@@ -473,11 +526,14 @@ The EC2 instance, not RDS, is the largest line: the guide expected RDS to be. A 
 ($0.0104 per hour, $7.59) would bring the total to about $26.82, at the cost of 1 GB of
 memory for Nginx and two Uvicorn workers. The plan keeps `t3.small`.
 
-Credits (from the owner's console, 2026-11-01, since `isba-student` can't read billing):
-$120, expiring 2027-04-29 (180 days). At $34.41 a month they last about 106 days, so they
-run out around 2027-02-15, before they expire. The zero-spend budget emails the owner the
-first time a charge isn't covered by credits. Delete the AWS resources before February, or
-switch to `t3.micro` to stretch the credits to about 2027-03-17.
+Credits (from the owner's console Credits page, 2026-11-09, since `isba-student` can't read
+billing): $140 issued ($100 Free Tier, $20 for setting up a budget, $20 for creating an RDS
+database, added 2026-11-02), all expiring 2027-10-29. Estimated used $8.45 (about $1.06 a
+day since cutover, close to the estimate), remaining $131.55. At $34.41 a month that lasts
+about 116 days, so the credits run out around 2027-03-05, before they expire. The zero-spend
+budget emails the owner the first time a charge isn't covered by credits. Delete the AWS
+resources before March, or switch to `t3.micro` to stretch the credits to about 2027-04-07.
+(The 2026-11-01 reading was $120 expiring 2027-04-29, before the RDS credit was added.)
 
 ## Repository map
 
